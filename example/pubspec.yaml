@@ -1,5 +1,5 @@
 name: animated_wrap_example
-description: Example app for animated_layout package
+description: Example app for animated_containers package
 publish_to: 'none'
 version: 1.0.0
 
@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  animated_layout:
+  animated_containers:
     path: ../
   cupertino_icons: ^1.0.2
   circular_reveal_animation: ^2.0.1

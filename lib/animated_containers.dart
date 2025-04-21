@@ -1,4 +1,4 @@
-library animated_layout;
+library animated_containers;
 
 import 'dart:collection';
 
@@ -13,7 +13,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:animated_layout/retargetable_easers.dart';
+import 'package:animated_containers/retargetable_easers.dart';
 
 typedef _NextChild = RenderBox? Function(RenderBox child);
 typedef _PositionChild = void Function(Offset offset, RenderBox child);

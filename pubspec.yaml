@@ -1,7 +1,7 @@
-name: animated_layout
-description: "A wrap widget where layout changes animate, that also helps with insertion and deletion."
+name: animated_containers
+description: "A wrap widget that animates insertion, removal, and layout changes."
 version: 0.9.0
-homepage: https://github.com/makoConstruct/animated_layout
+homepage: https://github.com/makoConstruct/animated_flex
 license: MIT
 
 environment:

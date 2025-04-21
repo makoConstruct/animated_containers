@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:animated_layout/animated_layout.dart';
+import 'package:animated_containers/animated_containers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
