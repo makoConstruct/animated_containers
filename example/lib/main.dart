@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:animated_layout/animated_layout.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,6 +35,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final _random = Random();
   final List<_WrapItem> _items = [];
   int _nextId = 0;
+  final FocusNode _focusNode = FocusNode();
+  int _insertButtonPressCount = 0;
 
   @override
   void initState() {
@@ -63,7 +66,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void _addThreeItems() {
+  void _insertThreeItems() {
     setState(() {
       for (int i = 0; i < 3; i++) {
         final insertIndex = _random.nextInt(_items.length + 1);
@@ -72,52 +75,87 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _removeFirstItem() {
+    if (_items.isNotEmpty) {
+      setState(() {
+        _items.removeAt(0);
+      });
+    }
+  }
+
+  void _insertOneItem() {
+    setState(() {
+      int insertPosition = 3 * _insertButtonPressCount;
+      if (insertPosition >= _items.length) {
+        _insertButtonPressCount = 0;
+        insertPosition = 0;
+      }
+      _items.insert(insertPosition, _createRandomItem());
+      _insertButtonPressCount++;
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AnimatedWrap Demo'),
+        title: const Text('animated wrap'),
       ),
-      body: Container(
-        constraints: const BoxConstraints.expand(),
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            Container(
-              constraints: const BoxConstraints.expand(),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(8.0),
-                child: AnimatedWrap(
-                  wrappingLineChangeAnimation: true,
-                  spacing: 8,
-                  runSpacing: 8,
-                  movementDuration: const Duration(milliseconds: 200),
-                  insertionDuration: const Duration(milliseconds: 600),
-                  insertionBuilder: (child, animation) => ScaleTransition(
-                    scale: animation.drive(CurveTween(
-                        curve: delayedCurve(const Duration(milliseconds: 400),
-                            const Duration(milliseconds: 200),
-                            curve: Curves.easeOut))),
-                    child: child,
+      body: KeyboardListener(
+        focusNode: _focusNode,
+        onKeyEvent: (event) {
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.backspace) {
+              _removeFirstItem();
+            } else if (event.logicalKey == LogicalKeyboardKey.digit1) {
+              _insertOneItem();
+            } else if (event.logicalKey == LogicalKeyboardKey.digit3) {
+              _insertThreeItems();
+            }
+          }
+        },
+        autofocus: true,
+        child: Container(
+          constraints: const BoxConstraints.expand(),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              Container(
+                constraints: const BoxConstraints.expand(),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(8.0),
+                  child: AnimatedWrap.material3(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _items.toList(),
                   ),
-                  removalDuration: const Duration(milliseconds: 200),
-                  removalBuilder: (child, animation) => ScaleTransition(
-                    scale: ReverseAnimation(animation)
-                        .drive(CurveTween(curve: Curves.easeIn)),
-                    child: child,
-                  ),
-                  children: _items.toList(),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                onPressed: _addThreeItems,
-                child: const Text('Add 3 Random Items'),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _insertOneItem,
+                      child: const Text('insert one'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: _insertThreeItems,
+                      child: const Text('insert three'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -171,10 +209,11 @@ class _WrapItem extends StatelessWidget {
 
 const colors = [
   (Color(0xffcfeca2), Color(0xff3f5a11)),
-  (Color(0xffefafe8), Color(0xff670f5c)),
+  (Color.fromARGB(255, 240, 184, 233), Color(0xff670f5c)),
   (Color(0xffafe9ef), Color(0xff0b5359)),
   (Color(0xffefcaaf), Color(0xff5b3112)),
 ];
+
 (Color, Color) _getRandomColors(Random random) {
   return colors[random.nextInt(colors.length)];
 }

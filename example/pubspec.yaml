@@ -12,6 +12,7 @@ dependencies:
   animated_layout:
     path: ../
   cupertino_icons: ^1.0.2
+  circular_reveal_animation: ^2.0.1
 
 dev_dependencies:
   flutter_test:

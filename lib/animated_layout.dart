@@ -2,6 +2,7 @@ library animated_layout;
 
 import 'dart:collection';
 
+import 'package:circular_reveal_animation/circular_reveal_animation.dart';
 import 'package:flutter/material.dart';
 
 // mostly copied from flutter's Wrap widget
@@ -731,6 +732,8 @@ class AnimatedRenderWrap extends RenderBox
     while (child != null) {
       final parentData = child.parentData! as WrapParentData;
       // wondering if we should use a simulator parameter here, but for now, we'll just use the one DynamicEaseInOutSimulation behavior directly.
+      // to implement that, you'd need to store the simulation in the parentData. The Simulator type would have to be configured with a constructor that takes a position and a velocity and is called on initalizing the wrap item.
+      // oh, you'll also have to get rid of _motionAnimation and _animation and continue calling for repaints until all simulations are `isDone`.
       if (!parentData.previousOffset.dx.isNaN) {
         final (Offset offset, Offset velocity) = easeValVelOffset(
           parentData.previousOffset,
@@ -992,9 +995,65 @@ class AnimatedWrap extends StatefulWidget {
     this.insertionDuration,
     this.insertionBuilder,
     this.staggeredInitialInsertionAnimation,
-    this.wrappingLineChangeAnimation = false,
-    // this.initialInsertAnimation = false,
   });
+
+  /// Has a bunch of nice defaults that I think fit well into material design 3.
+  static AnimatedWrap material3({
+    Key? key,
+    Axis direction = Axis.horizontal,
+    WrapAlignment alignment = WrapAlignment.start,
+    double spacing = 0.0,
+    WrapAlignment runAlignment = WrapAlignment.start,
+    double runSpacing = 0.0,
+    WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
+    TextDirection textDirection = TextDirection.ltr,
+    VerticalDirection verticalDirection = VerticalDirection.down,
+    Clip clipBehavior = Clip.none,
+    List<Widget> children = const <Widget>[],
+    double sensitivity = 5,
+    Duration movementDuration = const Duration(milliseconds: 400),
+    Duration removalDuration = const Duration(milliseconds: 280),
+    Widget Function(Widget child, Animation<double> controller)? removalBuilder,
+    Duration insertionDuration = const Duration(milliseconds: 500),
+    Widget Function(Widget child, Animation<double> controller)?
+        insertionBuilder,
+    Duration? staggeredInitialInsertionAnimation,
+  }) =>
+      AnimatedWrap(
+        key: key,
+        direction: direction,
+        alignment: alignment,
+        spacing: spacing,
+        runAlignment: runAlignment,
+        runSpacing: runSpacing,
+        crossAxisAlignment: crossAxisAlignment,
+        textDirection: textDirection,
+        verticalDirection: verticalDirection,
+        clipBehavior: clipBehavior,
+        sensitivity: sensitivity,
+        movementDuration: movementDuration,
+        insertionDuration: insertionDuration,
+        insertionBuilder: insertionBuilder ??
+            (child, animation) {
+              return CircularRevealAnimation(
+                  animation: delayAnimation(animation,
+                          by: Duration(
+                              milliseconds:
+                                  insertionDuration.inMilliseconds - 160),
+                          total: insertionDuration)
+                      .drive(CurveTween(curve: Curves.easeOut)),
+                  child: child);
+            },
+        removalDuration: removalDuration,
+        removalBuilder: removalBuilder ??
+            (child, animation) {
+              return CircularRevealAnimation(
+                  animation: ReverseAnimation(animation)
+                      .drive(CurveTween(curve: Curves.easeInCubic)),
+                  child: child);
+            },
+        children: children,
+      );
 
   /// The direction to use as the main axis.
   final Axis direction;
@@ -1051,7 +1110,8 @@ class AnimatedWrap extends StatefulWidget {
       insertionBuilder;
 
   /// When a widget goes from one line to another, if this is false, it just moves there in the obvious way, while if this is true, it wraps out from the right side of the previous line, into the next line (it gets rendered twice to acheive this visual effect). Surprisingly, this looks way more normal in many cases.
-  final bool wrappingLineChangeAnimation;
+  // (doesn't work yet)
+  final bool wrappingLineChangeAnimation = false;
 
   // /// Whether to animate the initial showing of the list.
   // final bool initialInsertAnimation;
@@ -1075,13 +1135,27 @@ class Insertion {
   Insertion(this.controller, this.child);
 }
 
-Interval delayedCurve(Duration delayDuration, Duration animationDuration,
-        {Curve curve = Curves.linear}) =>
-    Interval(
-        curve: curve,
-        delayDuration.inMilliseconds /
-            (delayDuration.inMilliseconds + animationDuration.inMilliseconds),
-        1.0);
+Interval delayedCurve(
+        {required Duration by,
+        required Duration total,
+        Curve curve = Curves.linear}) =>
+    Interval(curve: curve, by.inMilliseconds / total.inMilliseconds, 1.0);
+
+Animation<double> delayAnimation(Animation<double> animation,
+        {required Duration by, required Duration total}) =>
+    CurvedAnimation(
+      parent: animation,
+      curve: Interval(by.inMilliseconds / total.inMilliseconds, 1.0),
+    );
+
+/// returns an animation with duration [broader], but doesn't raise from 0 until [broader - duration], meaning that it will appear as if it runs for [duration] after a delay. We do it this way instead of specifying {delay, duration} because flutter requires the duration to have been decided generally before you receive an animation, so this ends up being more succinct/parametizable.
+Animation<double> delayedAnimation(Animation<double> animation,
+    {required Duration duration, required Duration within}) {
+  final curve = Interval(
+      (within.inMilliseconds - duration.inMilliseconds) / within.inMilliseconds,
+      1.0);
+  return CurvedAnimation(parent: animation, curve: curve);
+}
 
 class AnimatedWrapState extends State<AnimatedWrap>
     with TickerProviderStateMixin {
@@ -1117,7 +1191,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
   }
 
   _AnimatedWrapItem _makeWrapFor(Widget child,
-      [Duration delay = Duration.zero]) {
+      {Duration delay = Duration.zero, bool duringInitState = false}) {
     Widget Function(Widget, Animation<double>) builderForBuilder(
             Widget Function(Widget, Animation<double>)? builder) =>
         builder ??
@@ -1151,7 +1225,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
       final removalController = _removalBuilder != null
           ? AnimationController(duration: _removalDuration, vsync: this)
           : null;
-      final insertionController = _insertionBuilder != null
+      final insertionController = _insertionBuilder != null && !duringInitState
           ? AnimationController(duration: _insertionDuration, vsync: this)
           : null;
       insertionController?.forward();
@@ -1202,12 +1276,13 @@ class AnimatedWrapState extends State<AnimatedWrap>
     if (widget.staggeredInitialInsertionAnimation != null) {
       Duration cumulativeDelay = Duration.zero;
       for (final child in widget.children) {
-        _childItems[child.key!] = _makeWrapFor(child, cumulativeDelay);
+        _childItems[child.key!] =
+            _makeWrapFor(child, delay: cumulativeDelay, duringInitState: true);
         cumulativeDelay += widget.staggeredInitialInsertionAnimation!;
       }
     } else {
       for (final child in widget.children) {
-        _childItems[child.key!] = _makeWrapFor(child);
+        _childItems[child.key!] = _makeWrapFor(child, duringInitState: true);
       }
     }
   }
