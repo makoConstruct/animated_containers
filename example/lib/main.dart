@@ -1,8 +1,11 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:animated_containers/animated_containers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_touch_ripple/components/touch_ripple_context.dart';
+import 'package:flutter_touch_ripple/widgets/touch_ripple.dart';
 
 void main() {
   runApp(const MyApp());
@@ -42,7 +45,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     // Add initial items
-    for (int i = 0; i < 40; i++) {
+    for (int i = 0; i < 14; i++) {
       _items.add(_createRandomItem());
     }
   }
@@ -52,10 +55,10 @@ class _MyHomePageState extends State<MyHomePage> {
     final mid = _nextId++;
     return _WrapItem(
       id: mid,
+      key: ValueKey(mid),
       width: lengthDistribution[_random.nextInt(lengthDistribution.length)],
       backgroundColor: colors.$1,
       color: colors.$2,
-      key: GlobalKey(),
       onTap: () => _removeItem(mid),
     );
   }
@@ -92,6 +95,36 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       _items.insert(insertPosition, _createRandomItem());
       _insertButtonPressCount++;
+    });
+  }
+
+  void _shiftOne() {
+    setState(() {
+      final removed = _items.removeAt(_random.nextInt(_items.length));
+      // +1 because after the end is a valid position too
+      _items.insert(_random.nextInt(_items.length + 1), removed);
+    });
+  }
+
+  void _swapSome(int nToSwap) {
+    // don't swap more items than there are
+    nToSwap = min(nToSwap, _items.length);
+    setState(() {
+      final indices = [];
+      for (int i = 0; i < nToSwap; i++) {
+        int ni;
+        // ensure all indices are unique
+        do {
+          ni = _random.nextInt(_items.length);
+        } while (indices.contains(ni));
+        indices.add(ni);
+      }
+      // swap the items
+      final temp = _items[indices[0]];
+      for (int i = 0; i < nToSwap - 1; i++) {
+        _items[indices[i]] = _items[indices[i + 1]];
+      }
+      _items[indices[nToSwap - 1]] = temp;
     });
   }
 
@@ -139,17 +172,33 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: AnimatedWrap.material3(
+                  alignment: AnimatedWrapAlignment.center,
+                  runAlignment: AnimatedWrapAlignment.end,
+                  crossAxisAlignment: AnimatedWrapCrossAlignment.end,
+                  verticalDirection: VerticalDirection.up,
+                  spacing: 11,
+                  runSpacing: 11,
                   children: [
                     ElevatedButton(
+                      key: const Key('insertOne'),
                       onPressed: _insertOneItem,
                       child: const Text('insert one'),
                     ),
-                    const SizedBox(width: 16),
                     ElevatedButton(
+                      key: const Key('insertThree'),
                       onPressed: _insertThreeItems,
                       child: const Text('insert three'),
+                    ),
+                    ElevatedButton(
+                      key: const Key('shiftOne'),
+                      onPressed: _shiftOne,
+                      child: const Text('shift one'),
+                    ),
+                    ElevatedButton(
+                      key: const Key('swapFive'),
+                      onPressed: () => _swapSome(3),
+                      child: const Text('swap three'),
                     ),
                   ],
                 ),
@@ -185,9 +234,10 @@ class _WrapItem extends StatelessWidget {
       child: Material(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
-        child: InkWell(
+        clipBehavior: Clip.hardEdge,
+        // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
+        child: ourTouchRipple(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 12.0,
@@ -219,3 +269,30 @@ const colors = [
 }
 
 const List<double> lengthDistribution = [17.0, 35.0, 35.0, 60.0, 110.0];
+
+Color lightenColor(Color color, double amount) {
+  return Color.fromARGB(
+    (color.a * 255).toInt(),
+    (clampDouble(color.r + (1 - color.r) * amount, 0, 1) * 255).toInt(),
+    (clampDouble(color.g + (1 - color.g) * amount, 0, 1) * 255).toInt(),
+    (clampDouble(color.b + (1 - color.b) * amount, 0, 1) * 255).toInt(),
+  );
+}
+
+Interval delayedCurve(
+        {required Duration by,
+        required Duration total,
+        Curve curve = Curves.linear}) =>
+    Interval(curve: curve, by.inMilliseconds / total.inMilliseconds, 1.0);
+
+Widget ourTouchRipple({
+  required Widget child,
+  required VoidCallback onTap,
+}) =>
+    TouchRipple(
+      cancelBehavior: TouchRippleCancelBehavior.none,
+      onTap: onTap,
+      hoverColor: Colors.white.withAlpha(40),
+      rippleColor: Colors.white.withAlpha(100),
+      child: child,
+    );

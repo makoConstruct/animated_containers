@@ -56,11 +56,12 @@ extension type const _AxisSize._(Size _size) {
       Size(_size.width - other._size.width, _size.height - other._size.height));
 }
 
-/// How [Wrap] should align objects.
+/// How [AnimatedWrap] should align objects.
 ///
 /// Used both to align children within a run in the main axis as well as to
 /// align the runs themselves in the cross axis.
-enum WrapAlignment {
+// todo: use Wrap's enum?
+enum AnimatedWrapAlignment {
   /// Place the objects as close to the start of the axis as possible.
   ///
   /// If this value is used in a horizontal direction, a [TextDirection] must be
@@ -97,21 +98,22 @@ enum WrapAlignment {
       double freeSpace, double itemSpacing, int itemCount, bool flipped) {
     assert(itemCount > 0);
     return switch (this) {
-      WrapAlignment.start => (flipped ? freeSpace : 0.0, itemSpacing),
-      WrapAlignment.end => WrapAlignment.start
+      AnimatedWrapAlignment.start => (flipped ? freeSpace : 0.0, itemSpacing),
+      AnimatedWrapAlignment.end => AnimatedWrapAlignment.start
           ._distributeSpace(freeSpace, itemSpacing, itemCount, !flipped),
-      WrapAlignment.spaceBetween when itemCount < 2 => WrapAlignment.start
-          ._distributeSpace(freeSpace, itemSpacing, itemCount, flipped),
-      WrapAlignment.center => (freeSpace / 2.0, itemSpacing),
-      WrapAlignment.spaceBetween => (
+      AnimatedWrapAlignment.spaceBetween when itemCount < 2 =>
+        AnimatedWrapAlignment.start
+            ._distributeSpace(freeSpace, itemSpacing, itemCount, flipped),
+      AnimatedWrapAlignment.center => (freeSpace / 2.0, itemSpacing),
+      AnimatedWrapAlignment.spaceBetween => (
           0,
           freeSpace / (itemCount - 1) + itemSpacing
         ),
-      WrapAlignment.spaceAround => (
+      AnimatedWrapAlignment.spaceAround => (
           freeSpace / itemCount / 2,
           freeSpace / itemCount + itemSpacing
         ),
-      WrapAlignment.spaceEvenly => (
+      AnimatedWrapAlignment.spaceEvenly => (
           freeSpace / (itemCount + 1),
           freeSpace / (itemCount + 1) + itemSpacing
         ),
@@ -119,8 +121,8 @@ enum WrapAlignment {
   }
 }
 
-/// Who [Wrap] should align children within a run in the cross axis.
-enum WrapCrossAlignment {
+/// Who [AnimatedWrap] should align children within a run in the cross axis.
+enum AnimatedWrapCrossAlignment {
   /// Place the children as close to the start of the run in the cross axis as
   /// possible.
   ///
@@ -147,16 +149,16 @@ enum WrapCrossAlignment {
 
   // TODO(ianh): baseline.
 
-  WrapCrossAlignment get _flipped => switch (this) {
-        WrapCrossAlignment.start => WrapCrossAlignment.end,
-        WrapCrossAlignment.end => WrapCrossAlignment.start,
-        WrapCrossAlignment.center => WrapCrossAlignment.center,
+  AnimatedWrapCrossAlignment get _flipped => switch (this) {
+        AnimatedWrapCrossAlignment.start => AnimatedWrapCrossAlignment.end,
+        AnimatedWrapCrossAlignment.end => AnimatedWrapCrossAlignment.start,
+        AnimatedWrapCrossAlignment.center => AnimatedWrapCrossAlignment.center,
       };
 
   double get _alignment => switch (this) {
-        WrapCrossAlignment.start => 0,
-        WrapCrossAlignment.end => 1,
-        WrapCrossAlignment.center => 0.5,
+        AnimatedWrapCrossAlignment.start => 0,
+        AnimatedWrapCrossAlignment.end => 1,
+        AnimatedWrapCrossAlignment.center => 0.5,
       };
 }
 
@@ -190,7 +192,7 @@ class _RunMetrics {
 }
 
 /// Parent data for use with [AnimatedRenderWrap].
-class WrapParentData extends ContainerBoxParentData<RenderBox> {
+class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
 }
@@ -214,8 +216,8 @@ class WrapParentData extends ContainerBoxParentData<RenderBox> {
 /// exceeds the [sensitivity] threshold.
 class AnimatedRenderWrap extends RenderBox
     with
-        ContainerRenderObjectMixin<RenderBox, WrapParentData>,
-        RenderBoxContainerDefaultsMixin<RenderBox, WrapParentData> {
+        ContainerRenderObjectMixin<RenderBox, AnimatedWrapParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, AnimatedWrapParentData> {
   /// Creates a wrap render object.
   ///
   /// By default, the wrap layout is horizontal and both the children and the
@@ -223,11 +225,12 @@ class AnimatedRenderWrap extends RenderBox
   AnimatedRenderWrap({
     List<RenderBox>? children,
     Axis direction = Axis.horizontal,
-    WrapAlignment alignment = WrapAlignment.start,
+    AnimatedWrapAlignment alignment = AnimatedWrapAlignment.start,
     double spacing = 0.0,
-    WrapAlignment runAlignment = WrapAlignment.start,
+    AnimatedWrapAlignment runAlignment = AnimatedWrapAlignment.start,
     double runSpacing = 0.0,
-    WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
+    AnimatedWrapCrossAlignment crossAxisAlignment =
+        AnimatedWrapCrossAlignment.start,
     TextDirection? textDirection,
     VerticalDirection verticalDirection = VerticalDirection.down,
     Clip clipBehavior = Clip.none,
@@ -268,10 +271,10 @@ class AnimatedRenderWrap extends RenderBox
 
   /// How the children within a run should be placed in the main axis.
   ///
-  /// For example, if [alignment] is [WrapAlignment.center], the children in
+  /// For example, if [alignment] is [AnimatedWrapAlignment.center], the children in
   /// each run are grouped together in the center of their run in the main axis.
   ///
-  /// Defaults to [WrapAlignment.start].
+  /// Defaults to [AnimatedWrapAlignment.start].
   ///
   /// See also:
   ///
@@ -279,9 +282,9 @@ class AnimatedRenderWrap extends RenderBox
   ///    other in the cross axis.
   ///  * [crossAxisAlignment], which controls how the children within each run
   ///    are placed relative to each other in the cross axis.
-  WrapAlignment get alignment => _alignment;
-  WrapAlignment _alignment;
-  set alignment(WrapAlignment value) {
+  AnimatedWrapAlignment get alignment => _alignment;
+  AnimatedWrapAlignment _alignment;
+  set alignment(AnimatedWrapAlignment value) {
     if (_alignment == value) {
       return;
     }
@@ -312,11 +315,11 @@ class AnimatedRenderWrap extends RenderBox
 
   /// How the runs themselves should be placed in the cross axis.
   ///
-  /// For example, if [runAlignment] is [WrapAlignment.center], the runs are
+  /// For example, if [runAlignment] is [AnimatedWrapAlignment.center], the runs are
   /// grouped together in the center of the overall [RenderWrap] in the cross
   /// axis.
   ///
-  /// Defaults to [WrapAlignment.start].
+  /// Defaults to [AnimatedWrapAlignment.start].
   ///
   /// See also:
   ///
@@ -324,9 +327,9 @@ class AnimatedRenderWrap extends RenderBox
   ///    relative to each other in the main axis.
   ///  * [crossAxisAlignment], which controls how the children within each run
   ///    are placed relative to each other in the cross axis.
-  WrapAlignment get runAlignment => _runAlignment;
-  WrapAlignment _runAlignment;
-  set runAlignment(WrapAlignment value) {
+  AnimatedWrapAlignment get runAlignment => _runAlignment;
+  AnimatedWrapAlignment _runAlignment;
+  set runAlignment(AnimatedWrapAlignment value) {
     if (_runAlignment == value) {
       return;
     }
@@ -357,11 +360,11 @@ class AnimatedRenderWrap extends RenderBox
   /// How the children within a run should be aligned relative to each other in
   /// the cross axis.
   ///
-  /// For example, if this is set to [WrapCrossAlignment.end], and the
+  /// For example, if this is set to [AnimatedWrapCrossAlignment.end], and the
   /// [direction] is [Axis.horizontal], then the children within each
   /// run will have their bottom edges aligned to the bottom edge of the run.
   ///
-  /// Defaults to [WrapCrossAlignment.start].
+  /// Defaults to [AnimatedWrapCrossAlignment.start].
   ///
   /// See also:
   ///
@@ -369,9 +372,9 @@ class AnimatedRenderWrap extends RenderBox
   ///    relative to each other in the main axis.
   ///  * [runAlignment], which controls how the runs are placed relative to each
   ///    other in the cross axis.
-  WrapCrossAlignment get crossAxisAlignment => _crossAxisAlignment;
-  WrapCrossAlignment _crossAxisAlignment;
-  set crossAxisAlignment(WrapCrossAlignment value) {
+  AnimatedWrapCrossAlignment get crossAxisAlignment => _crossAxisAlignment;
+  AnimatedWrapCrossAlignment _crossAxisAlignment;
+  set crossAxisAlignment(AnimatedWrapCrossAlignment value) {
     if (_crossAxisAlignment == value) {
       return;
     }
@@ -384,23 +387,23 @@ class AnimatedRenderWrap extends RenderBox
   ///
   /// If the [direction] is [Axis.horizontal], this controls the order in which
   /// children are positioned (left-to-right or right-to-left), and the meaning
-  /// of the [alignment] property's [WrapAlignment.start] and
-  /// [WrapAlignment.end] values.
+  /// of the [alignment] property's [AnimatedWrapAlignment.start] and
+  /// [AnimatedWrapAlignment.end] values.
   ///
   /// If the [direction] is [Axis.horizontal], and either the
-  /// [alignment] is either [WrapAlignment.start] or [WrapAlignment.end], or
+  /// [alignment] is either [AnimatedWrapAlignment.start] or [AnimatedWrapAlignment.end], or
   /// there's more than one child, then the [textDirection] must not be null.
   ///
   /// If the [direction] is [Axis.vertical], this controls the order in
   /// which runs are positioned, the meaning of the [runAlignment] property's
-  /// [WrapAlignment.start] and [WrapAlignment.end] values, as well as the
-  /// [crossAxisAlignment] property's [WrapCrossAlignment.start] and
-  /// [WrapCrossAlignment.end] values.
+  /// [AnimatedWrapAlignment.start] and [AnimatedWrapAlignment.end] values, as well as the
+  /// [crossAxisAlignment] property's [AnimatedWrapCrossAlignment.start] and
+  /// [AnimatedWrapCrossAlignment.end] values.
   ///
   /// If the [direction] is [Axis.vertical], and either the
-  /// [runAlignment] is either [WrapAlignment.start] or [WrapAlignment.end], the
-  /// [crossAxisAlignment] is either [WrapCrossAlignment.start] or
-  /// [WrapCrossAlignment.end], or there's more than one child, then the
+  /// [runAlignment] is either [AnimatedWrapAlignment.start] or [AnimatedWrapAlignment.end], the
+  /// [crossAxisAlignment] is either [AnimatedWrapCrossAlignment.start] or
+  /// [AnimatedWrapCrossAlignment.end], or there's more than one child, then the
   /// [textDirection] must not be null.
   TextDirection? get textDirection => _textDirection;
   TextDirection? _textDirection;
@@ -416,22 +419,22 @@ class AnimatedRenderWrap extends RenderBox
   ///
   /// If the [direction] is [Axis.vertical], this controls which order children
   /// are painted in (down or up), the meaning of the [alignment] property's
-  /// [WrapAlignment.start] and [WrapAlignment.end] values.
+  /// [AnimatedWrapAlignment.start] and [AnimatedWrapAlignment.end] values.
   ///
   /// If the [direction] is [Axis.vertical], and either the [alignment]
-  /// is either [WrapAlignment.start] or [WrapAlignment.end], or there's
+  /// is either [AnimatedWrapAlignment.start] or [AnimatedWrapAlignment.end], or there's
   /// more than one child, then the [verticalDirection] must not be null.
   ///
   /// If the [direction] is [Axis.horizontal], this controls the order in which
   /// runs are positioned, the meaning of the [runAlignment] property's
-  /// [WrapAlignment.start] and [WrapAlignment.end] values, as well as the
-  /// [crossAxisAlignment] property's [WrapCrossAlignment.start] and
-  /// [WrapCrossAlignment.end] values.
+  /// [AnimatedWrapAlignment.start] and [AnimatedWrapAlignment.end] values, as well as the
+  /// [crossAxisAlignment] property's [AnimatedWrapCrossAlignment.start] and
+  /// [AnimatedWrapCrossAlignment.end] values.
   ///
   /// If the [direction] is [Axis.horizontal], and either the
-  /// [runAlignment] is either [WrapAlignment.start] or [WrapAlignment.end], the
-  /// [crossAxisAlignment] is either [WrapCrossAlignment.start] or
-  /// [WrapCrossAlignment.end], or there's more than one child, then the
+  /// [runAlignment] is either [AnimatedWrapAlignment.start] or [AnimatedWrapAlignment.end], the
+  /// [crossAxisAlignment] is either [AnimatedWrapCrossAlignment.start] or
+  /// [AnimatedWrapCrossAlignment.end], or there's more than one child, then the
   /// [verticalDirection] must not be null.
   VerticalDirection get verticalDirection => _verticalDirection;
   VerticalDirection _verticalDirection;
@@ -466,7 +469,8 @@ class AnimatedRenderWrap extends RenderBox
           break;
       }
     }
-    if (alignment == WrapAlignment.start || alignment == WrapAlignment.end) {
+    if (alignment == AnimatedWrapAlignment.start ||
+        alignment == AnimatedWrapAlignment.end) {
       switch (direction) {
         case Axis.horizontal:
           assert(textDirection != null,
@@ -475,8 +479,8 @@ class AnimatedRenderWrap extends RenderBox
           break;
       }
     }
-    if (runAlignment == WrapAlignment.start ||
-        runAlignment == WrapAlignment.end) {
+    if (runAlignment == AnimatedWrapAlignment.start ||
+        runAlignment == AnimatedWrapAlignment.end) {
       switch (direction) {
         case Axis.horizontal:
           break;
@@ -485,8 +489,8 @@ class AnimatedRenderWrap extends RenderBox
               'Vertical $runtimeType with runAlignment $runAlignment has a null textDirection, so the alignment cannot be resolved.');
       }
     }
-    if (crossAxisAlignment == WrapCrossAlignment.start ||
-        crossAxisAlignment == WrapCrossAlignment.end) {
+    if (crossAxisAlignment == AnimatedWrapCrossAlignment.start ||
+        crossAxisAlignment == AnimatedWrapCrossAlignment.end) {
       switch (direction) {
         case Axis.horizontal:
           break;
@@ -501,10 +505,13 @@ class AnimatedRenderWrap extends RenderBox
   final LayerHandle<ClipRectLayer> _clipRectLayer =
       LayerHandle<ClipRectLayer>();
 
+  // the only reason we have to store this is that we're ordinarily not allowed to access the size during performLayout until after we've written it. Not sure why.
+  Size? previousSize;
+
   @override
   void setupParentData(RenderBox child) {
-    if (child.parentData is! WrapParentData) {
-      child.parentData = WrapParentData();
+    if (child.parentData is! AnimatedWrapParentData) {
+      child.parentData = AnimatedWrapParentData();
     }
   }
 
@@ -701,7 +708,7 @@ class AnimatedRenderWrap extends RenderBox
 
   static Size _getChildSize(RenderBox child) => child.size;
   static void _setChildPosition(Offset offset, RenderBox child) {
-    (child.parentData! as WrapParentData).offset = offset;
+    (child.parentData! as AnimatedWrapParentData).offset = offset;
   }
 
   bool _hasVisualOverflow = false;
@@ -720,33 +727,36 @@ class AnimatedRenderWrap extends RenderBox
         _computeRuns(constraints, ChildLayoutHelper.layoutChild);
     final _AxisSize containerAxisSize =
         childrenAxisSize.applyConstraints(constraints, direction);
+    // omg we're not allowed to do this. How do I respond to size changes q_q (I guess I can just make another copy of size)
     size = containerAxisSize.toSize(direction);
     final _AxisSize freeAxisSize = containerAxisSize - childrenAxisSize;
     _hasVisualOverflow =
         freeAxisSize.mainAxisExtent < 0.0 || freeAxisSize.crossAxisExtent < 0.0;
 
-    // record positions prior to animation
+    // record positions prior to layout change
     bool needsAnimation = false;
     RenderBox? child = firstChild;
-    final List<WrapParentData> needsPrevSet = <WrapParentData>[];
+    final List<AnimatedWrapParentData> setAfterLayout =
+        <AnimatedWrapParentData>[];
     while (child != null) {
-      final parentData = child.parentData! as WrapParentData;
+      final cpd = child.parentData! as AnimatedWrapParentData;
       // wondering if we should use a simulator parameter here, but for now, we'll just use the one DynamicEaseInOutSimulation behavior directly.
       // to implement that, you'd need to store the simulation in the parentData. The Simulator type would have to be configured with a constructor that takes a position and a velocity and is called on initalizing the wrap item.
       // oh, you'll also have to get rid of _motionAnimation and _animation and continue calling for repaints until all simulations are `isDone`.
-      if (!parentData.previousOffset.dx.isNaN) {
+      if (!cpd.previousOffset.dx.isNaN) {
         final (Offset offset, Offset velocity) = easeValVelOffset(
-          parentData.previousOffset,
-          parentData.offset,
+          cpd.previousOffset,
+          cpd.offset,
           0,
           1,
           _animation.value,
-          parentData.previousVelocity,
+          cpd.previousVelocity,
         );
-        parentData.previousOffset = offset;
-        parentData.previousVelocity = velocity;
+        cpd.previousOffset = offset;
+        cpd.previousVelocity = velocity;
       } else {
-        needsPrevSet.add(parentData);
+        // has no previousPosition, so shouldn't animate, so we set these after layout
+        setAfterLayout.add(cpd);
       }
       child = childAfter(child);
     }
@@ -754,13 +764,67 @@ class AnimatedRenderWrap extends RenderBox
     _positionChildren(runMetrics, freeAxisSize, containerAxisSize,
         _setChildPosition, _getChildSize);
 
-    for (final parentData in needsPrevSet) {
-      parentData.previousOffset = parentData.offset;
+    for (final cpd in setAfterLayout) {
+      cpd.previousOffset = cpd.offset;
     }
+    // we adjust previousOffsets depending on alignment if there was a size change. This makes it possible to prevent certain animation discontinuities. EG: If you had extra space on the right, but were then shortened, you would never expect the children to glitch to the left before animating back. Yet if you reverse the scene and do that (size change for a right-aligned wrap), that actually does happen! We address that here.
+    if (previousSize != null && size != previousSize) {
+      // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also aniamte movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
+      // move everything in train with the far horizontal boundary if appropriate
+      if (direction == Axis.horizontal
+          ? alignment == AnimatedWrapAlignment.end
+          : runAlignment == AnimatedWrapAlignment.end) {
+        var dx = size.width - (previousSize?.width ?? 0);
+        for (RenderBox? child = firstChild;
+            child != null;
+            child = childAfter(child)) {
+          final parentData = child.parentData! as AnimatedWrapParentData;
+          parentData.previousOffset = parentData.previousOffset + Offset(dx, 0);
+        }
+      }
+      // also handle center alignment
+      if (direction == Axis.horizontal
+          ? alignment == AnimatedWrapAlignment.center
+          : runAlignment == AnimatedWrapAlignment.center) {
+        final dx = size.width / 2 - (previousSize?.width ?? 0) / 2;
+        for (RenderBox? child = firstChild;
+            child != null;
+            child = childAfter(child)) {
+          final parentData = child.parentData! as AnimatedWrapParentData;
+          parentData.previousOffset = parentData.previousOffset + Offset(dx, 0);
+        }
+      }
+      // move everything in train with the far vertical boundary if appropriate
+      if (direction == Axis.vertical
+          ? alignment == AnimatedWrapAlignment.end
+          : runAlignment == AnimatedWrapAlignment.end) {
+        var dy = size.height - (previousSize?.height ?? 0);
+        for (RenderBox? child = firstChild;
+            child != null;
+            child = childAfter(child)) {
+          final parentData = child.parentData! as AnimatedWrapParentData;
+          parentData.previousOffset = parentData.previousOffset + Offset(0, dy);
+        }
+      }
+      // also handle vertical center alignment
+      if (direction == Axis.vertical
+          ? alignment == AnimatedWrapAlignment.center
+          : runAlignment == AnimatedWrapAlignment.center) {
+        final dy = size.height / 2 - (previousSize?.height ?? 0) / 2;
+        for (RenderBox? child = firstChild;
+            child != null;
+            child = childAfter(child)) {
+          final parentData = child.parentData! as AnimatedWrapParentData;
+          parentData.previousOffset = parentData.previousOffset + Offset(0, dy);
+        }
+      }
+      // and nothing special needs to be done if the horizontal or vertical alignment is start, center, or spaceBetween
+    }
+    previousSize = size;
 
     child = firstChild;
     while (child != null) {
-      final parentData = child.parentData! as WrapParentData;
+      final parentData = child.parentData! as AnimatedWrapParentData;
 
       if (!parentData.previousOffset.dx.isNaN) {
         if ((parentData.offset - parentData.previousOffset).distance >
@@ -835,7 +899,7 @@ class AnimatedRenderWrap extends RenderBox
         math.max(0.0, freeAxisSize.crossAxisExtent);
 
     final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
-    final WrapCrossAlignment effectiveCrossAlignment =
+    final AnimatedWrapCrossAlignment effectiveCrossAlignment =
         flipCrossAxis ? crossAxisAlignment._flipped : crossAxisAlignment;
     final (double runLeadingSpace, double runBetweenSpace) =
         runAlignment._distributeSpace(
@@ -891,7 +955,7 @@ class AnimatedRenderWrap extends RenderBox
     // Paint each child with its current animated position
     RenderBox? child = firstChild;
     while (child != null) {
-      final parentData = child.parentData! as WrapParentData;
+      final parentData = child.parentData! as AnimatedWrapParentData;
       final animatedOffset = !parentData.previousOffset.dx.isNaN
           ? easeOffset(
               parentData.previousOffset,
@@ -936,9 +1000,10 @@ class AnimatedRenderWrap extends RenderBox
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties.add(EnumProperty<Axis>('direction', direction));
-    properties.add(EnumProperty<WrapAlignment>('alignment', alignment));
+    properties.add(EnumProperty<AnimatedWrapAlignment>('alignment', alignment));
     properties.add(DoubleProperty('spacing', spacing));
-    properties.add(EnumProperty<WrapAlignment>('runAlignment', runAlignment));
+    properties
+        .add(EnumProperty<AnimatedWrapAlignment>('runAlignment', runAlignment));
     properties.add(DoubleProperty('runSpacing', runSpacing));
     properties.add(DoubleProperty('crossAxisAlignment', runSpacing));
     properties.add(EnumProperty<TextDirection>('textDirection', textDirection,
@@ -979,11 +1044,11 @@ class AnimatedWrap extends StatefulWidget {
   const AnimatedWrap({
     super.key,
     this.direction = Axis.horizontal,
-    this.alignment = WrapAlignment.start,
+    this.alignment = AnimatedWrapAlignment.start,
     this.spacing = 0.0,
-    this.runAlignment = WrapAlignment.start,
+    this.runAlignment = AnimatedWrapAlignment.start,
     this.runSpacing = 0.0,
-    this.crossAxisAlignment = WrapCrossAlignment.start,
+    this.crossAxisAlignment = AnimatedWrapCrossAlignment.start,
     this.textDirection = TextDirection.ltr,
     this.verticalDirection = VerticalDirection.down,
     this.clipBehavior = Clip.none,
@@ -1001,17 +1066,18 @@ class AnimatedWrap extends StatefulWidget {
   static AnimatedWrap material3({
     Key? key,
     Axis direction = Axis.horizontal,
-    WrapAlignment alignment = WrapAlignment.start,
+    AnimatedWrapAlignment alignment = AnimatedWrapAlignment.start,
     double spacing = 0.0,
-    WrapAlignment runAlignment = WrapAlignment.start,
+    AnimatedWrapAlignment runAlignment = AnimatedWrapAlignment.start,
     double runSpacing = 0.0,
-    WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
+    AnimatedWrapCrossAlignment crossAxisAlignment =
+        AnimatedWrapCrossAlignment.start,
     TextDirection textDirection = TextDirection.ltr,
     VerticalDirection verticalDirection = VerticalDirection.down,
     Clip clipBehavior = Clip.none,
     List<Widget> children = const <Widget>[],
     double sensitivity = 5,
-    Duration movementDuration = const Duration(milliseconds: 400),
+    Duration movementDuration = const Duration(milliseconds: 360),
     Duration removalDuration = const Duration(milliseconds: 280),
     Widget Function(Widget child, Animation<double> controller)? removalBuilder,
     Duration insertionDuration = const Duration(milliseconds: 500),
@@ -1059,20 +1125,20 @@ class AnimatedWrap extends StatefulWidget {
   final Axis direction;
 
   /// How the children within a run should be placed in the main axis.
-  final WrapAlignment alignment;
+  final AnimatedWrapAlignment alignment;
 
   /// How much space to place between children in a run in the main axis.
   final double spacing;
 
   /// How the runs themselves should be placed in the cross axis.
-  final WrapAlignment runAlignment;
+  final AnimatedWrapAlignment runAlignment;
 
   /// How much space to place between the runs themselves in the cross axis.
   final double runSpacing;
 
   /// How the children within a run should be aligned relative to each other in
   /// the cross axis.
-  final WrapCrossAlignment crossAxisAlignment;
+  final AnimatedWrapCrossAlignment crossAxisAlignment;
 
   /// Determines the order to lay children out horizontally and how to interpret
   /// `start` and `end` in the horizontal direction.
@@ -1437,11 +1503,11 @@ class _AnimatedWrapRender extends MultiChildRenderObjectWidget {
   });
 
   final Axis direction;
-  final WrapAlignment alignment;
+  final AnimatedWrapAlignment alignment;
   final double spacing;
-  final WrapAlignment runAlignment;
+  final AnimatedWrapAlignment runAlignment;
   final double runSpacing;
-  final WrapCrossAlignment crossAxisAlignment;
+  final AnimatedWrapCrossAlignment crossAxisAlignment;
   final TextDirection? textDirection;
   final VerticalDirection verticalDirection;
   final Clip clipBehavior;
