@@ -177,25 +177,10 @@ enum AnimatedWrapCrossAlignment {
       };
 }
 
-double _flexOf(RenderObject child) {
-  final parentData = child.parentData;
-  assert(parentData is AnFlowParentData);
-  return (parentData as AnFlowParentData).flex;
-}
-
-(double, FlexFit) _flexFitOf(RenderObject child) {
-  final parentData = child.parentData;
-  assert(parentData is AnFlowParentData);
-  final pd = parentData as AnFlowParentData;
-  return (pd.flex, pd.flexFit);
-}
-
 class _RunMetrics {
   _AxisSize axisSize = _AxisSize.empty;
   int childCount = 0;
   RenderBox? leadingChild;
-  double flexTotal = 0;
-  RenderBox? leadingFlexChild;
 }
 
 /// Parent data for use with [AnimatedRenderWrap].
@@ -206,9 +191,6 @@ class AnFlowParentData extends ContainerBoxParentData<RenderBox> {
   // which can be set via a Flowable
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
-  double flex = 0;
-  double minSpan = 0;
-  FlexFit flexFit = FlexFit.loose;
 }
 
 /// Displays its children in multiple horizontal or vertical runs.
@@ -875,73 +857,44 @@ class AnimatedRenderWrap extends RenderBox
 
     final (bool flipMainAxis, _) = _areAxesFlipped;
     final double spacing = this.spacing;
-    bool canFlex = mainAxisLimit.isFinite;
 
     final List<_RunMetrics> runMetrics = <_RunMetrics>[];
     _RunMetrics? currentRun;
     _AxisSize childrenAxisSize = _AxisSize.empty;
 
-    // does the flex calculations
     void completeRun(_RunMetrics run) {
-      final nextChild = flipMainAxis ? childBefore : childAfter;
-      RenderBox? child = run.leadingFlexChild;
-      double spareSpacePerFlex =
-          max(0, mainAxisLimit - run.axisSize.mainAxisExtent) / run.flexTotal;
-      while (child != null) {
-        final (double flex, FlexFit flexFit) = _flexFitOf(child);
-        double assignedSpan = spareSpacePerFlex * flex;
-        BoxConstraints constraints =
-            _AxisSize(mainAxisExtent: assignedSpan, crossAxisExtent: 0.0)
-                .toBoxConstraints(direction, flexFit == FlexFit.tight);
-        final childSize = _AxisSize.fromSize(
-            size: layoutChild(child, constraints), direction: direction);
-        run.axisSize += childSize;
-        run.childCount += 1;
-        child = nextChild(child);
-      }
       childrenAxisSize += run.axisSize.flipped;
     }
 
-    // first pass, do a dry layout to get pre-flex row sizes
     for (RenderBox? child = firstChild;
         child != null;
         child = childAfter(child)) {
-      double flex = _flexOf(child);
       // create a new run if needed
       if (currentRun == null) {
         currentRun = _RunMetrics();
         runMetrics.add(currentRun);
       }
-      // if flex, we can't size it until we know the non-flex children sizes
-      if (canFlex && flex > 0) {
-        currentRun.flexTotal += flex;
+      final _AxisSize childSize = _AxisSize.fromSize(
+          size: layoutChild(child, childConstraints), direction: direction);
+      // if we've exceeded the main axis limit, complete the current run and start a new one
+      if (currentRun.axisSize.mainAxisExtent +
+              childSize.mainAxisExtent +
+              spacing >
+          mainAxisLimit + precisionErrorTolerance) {
+        completeRun(currentRun);
+        currentRun = _RunMetrics();
+        currentRun.axisSize = childSize;
+        currentRun.leadingChild = child;
         currentRun.childCount += 1;
-        currentRun.leadingFlexChild =
-            flipMainAxis ? child : currentRun.leadingFlexChild ?? child;
-      } else {
-        final _AxisSize childSize = _AxisSize.fromSize(
-            size: layoutChild(child, childConstraints), direction: direction);
-        // if we've exceeded the main axis limit, complete the current run and start a new one
-        if (currentRun.axisSize.mainAxisExtent +
-                childSize.mainAxisExtent +
-                spacing >
-            mainAxisLimit + precisionErrorTolerance) {
-          completeRun(currentRun);
-          currentRun = _RunMetrics();
-          currentRun.axisSize = childSize;
-          currentRun.leadingChild = child;
-          currentRun.childCount += 1;
-          runMetrics.add(currentRun);
-        }
-
-        currentRun.axisSize += childSize +
-            _AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
-        currentRun.childCount += 1;
-        // yeah it traverses them backwards in _positionChildren if flipMainAxis.
-        if (flipMainAxis) {
-          currentRun.leadingChild = child;
-        }
+        runMetrics.add(currentRun);
       }
+
+      currentRun.axisSize +=
+          childSize + _AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
+      currentRun.childCount += 1;
+      // yeah it traverses them backwards in _positionChildren if flipMainAxis.
+      currentRun.leadingChild =
+          flipMainAxis ? child : currentRun.leadingChild ?? child;
     }
     if (currentRun != null) {
       completeRun(currentRun);

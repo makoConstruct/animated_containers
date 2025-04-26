@@ -1,7 +1,8 @@
+## 0.9.1
 
 flex stuff:
 
-This was a bad idea. This is a failed branch. Here I'll document what happened.
+Putting flex in AnimatedWrap was a bad idea. This is a failed branch. Here I'll document what happened.
 
 I came in with an idealized conception of how flex layout would work. I spent a day hammering flutter's way of doing flex layout into my head. The next day, I was ready to implement, and I did, and it was going to work, but then I put it all together: This is useless.
 
