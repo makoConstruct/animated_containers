@@ -19,7 +19,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'AnimatedWrap Demo',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color.fromARGB(255, 34, 34, 34)),
         useMaterial3: true,
       ),
       home: const MyHomePage(),
@@ -150,6 +151,8 @@ class _MyHomePageState extends State<MyHomePage> {
               _insertOneItem();
             } else if (event.logicalKey == LogicalKeyboardKey.digit3) {
               _insertThreeItems();
+            } else if (event.logicalKey == LogicalKeyboardKey.space) {
+              _swapSome(3);
             }
           }
         },
@@ -181,23 +184,23 @@ class _MyHomePageState extends State<MyHomePage> {
                   runSpacing: 11,
                   children: [
                     ElevatedButton(
-                      key: const Key('insertOne'),
                       onPressed: _insertOneItem,
+                      key: const ValueKey('insert one'),
                       child: const Text('insert one'),
                     ),
                     ElevatedButton(
-                      key: const Key('insertThree'),
                       onPressed: _insertThreeItems,
+                      key: const ValueKey('insert three'),
                       child: const Text('insert three'),
                     ),
                     ElevatedButton(
-                      key: const Key('shiftOne'),
                       onPressed: _shiftOne,
+                      key: const ValueKey('shift one'),
                       child: const Text('shift one'),
                     ),
                     ElevatedButton(
-                      key: const Key('swapFive'),
                       onPressed: () => _swapSome(3),
+                      key: const ValueKey('swap three'),
                       child: const Text('swap three'),
                     ),
                   ],
@@ -205,6 +208,37 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// todo: delete this I guess :(
+class OurButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String text;
+  static OurButton textKeyed(VoidCallback onPressed, String text) => OurButton(
+        onPressed,
+        text,
+        key: ValueKey(text),
+      );
+  const OurButton(this.onPressed, this.text, {super.key});
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceDim,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ourTouchRipple(
+        onTap: onPressed,
+        color: theme.colorScheme.onSurface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: Text(text, style: theme.textTheme.bodyLarge),
         ),
       ),
     );
@@ -238,6 +272,7 @@ class _WrapItem extends StatelessWidget {
         // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
         child: ourTouchRipple(
           onTap: onTap,
+          color: const Color.fromARGB(255, 255, 255, 255),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 12.0,
@@ -286,13 +321,17 @@ Interval delayedCurve(
     Interval(curve: curve, by.inMilliseconds / total.inMilliseconds, 1.0);
 
 Widget ourTouchRipple({
+  Key? key,
+  TouchRippleShape? shape,
   required Widget child,
+  Color color = const Color.fromARGB(255, 255, 255, 255),
   required VoidCallback onTap,
 }) =>
     TouchRipple(
+      key: key,
       cancelBehavior: TouchRippleCancelBehavior.none,
       onTap: onTap,
-      hoverColor: Colors.white.withAlpha(40),
-      rippleColor: Colors.white.withAlpha(100),
+      hoverColor: color.withAlpha(40),
+      rippleColor: color.withAlpha(100),
       child: child,
     );

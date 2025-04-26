@@ -63,7 +63,7 @@
             
             shellHook = ''
               export PKG_CONFIG_PATH="${pkgs.gst_all_1.gstreamer.dev}/lib/pkgconfig:${pkgs.gst_all_1.gst-plugins-base.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
-              export PS1="$PS1' "
+              export PS1="$PS1 (❄ "
             '';
 
             ANDROID_HOME = android.androidsdk + /libexec/android-sdk;

@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:math' as math;
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -40,6 +40,22 @@ extension type const _AxisSize._(Size _size) {
 
   Size toSize(Axis direction) => _convert(_size, direction);
 
+  BoxConstraints toBoxConstraints(Axis direction, bool isTight) =>
+      switch (direction) {
+        Axis.horizontal => BoxConstraints(
+            minWidth: isTight ? _size.width : 0.0,
+            maxWidth: _size.width,
+            minHeight: 0.0,
+            maxHeight: _size.height,
+          ),
+        Axis.vertical => BoxConstraints(
+            minWidth: 0.0,
+            maxWidth: _size.width,
+            minHeight: isTight ? _size.height : 0.0,
+            maxHeight: _size.height,
+          )
+      };
+
   _AxisSize applyConstraints(BoxConstraints constraints, Axis direction) {
     final BoxConstraints effectiveConstraints = switch (direction) {
       Axis.horizontal => constraints,
@@ -50,8 +66,7 @@ extension type const _AxisSize._(Size _size) {
 
   _AxisSize get flipped => _AxisSize._(_size.flipped);
   _AxisSize operator +(_AxisSize other) => _AxisSize._(Size(
-      _size.width + other._size.width,
-      math.max(_size.height, other._size.height)));
+      _size.width + other._size.width, max(_size.height, other._size.height)));
   _AxisSize operator -(_AxisSize other) => _AxisSize._(
       Size(_size.width - other._size.width, _size.height - other._size.height));
 }
@@ -162,39 +177,38 @@ enum AnimatedWrapCrossAlignment {
       };
 }
 
+double _flexOf(RenderObject child) {
+  final parentData = child.parentData;
+  assert(parentData is AnFlowParentData);
+  return (parentData as AnFlowParentData).flex;
+}
+
+(double, FlexFit) _flexFitOf(RenderObject child) {
+  final parentData = child.parentData;
+  assert(parentData is AnFlowParentData);
+  final pd = parentData as AnFlowParentData;
+  return (pd.flex, pd.flexFit);
+}
+
 class _RunMetrics {
-  _RunMetrics(this.leadingChild, this.axisSize);
-
-  _AxisSize axisSize;
-  int childCount = 1;
-  RenderBox leadingChild;
-
-  // Look ahead, creates a new run if incorporating the child would exceed the allowed line width.
-  _RunMetrics? tryAddingNewChild(RenderBox child, _AxisSize childSize,
-      bool flipMainAxis, double spacing, double maxMainExtent) {
-    final bool needsNewRun = axisSize.mainAxisExtent +
-            childSize.mainAxisExtent +
-            spacing -
-            maxMainExtent >
-        precisionErrorTolerance;
-    if (needsNewRun) {
-      return _RunMetrics(child, childSize);
-    } else {
-      axisSize +=
-          childSize + _AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
-      childCount += 1;
-      if (flipMainAxis) {
-        leadingChild = child;
-      }
-      return null;
-    }
-  }
+  _AxisSize axisSize = _AxisSize.empty;
+  int childCount = 0;
+  RenderBox? leadingChild;
+  double flexTotal = 0;
+  RenderBox? leadingFlexChild;
 }
 
 /// Parent data for use with [AnimatedRenderWrap].
-class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
+class AnFlowParentData extends ContainerBoxParentData<RenderBox> {
+  // todo: replace with:
+  // Simulation? simulation;
+  // Simulation Function(Offset position, Offset velocity)? simulationFactory;
+  // which can be set via a Flowable
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
+  double flex = 0;
+  double minSpan = 0;
+  FlexFit flexFit = FlexFit.loose;
 }
 
 /// Displays its children in multiple horizontal or vertical runs.
@@ -216,8 +230,8 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
 /// exceeds the [sensitivity] threshold.
 class AnimatedRenderWrap extends RenderBox
     with
-        ContainerRenderObjectMixin<RenderBox, AnimatedWrapParentData>,
-        RenderBoxContainerDefaultsMixin<RenderBox, AnimatedWrapParentData> {
+        ContainerRenderObjectMixin<RenderBox, AnFlowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, AnFlowParentData> {
   /// Creates a wrap render object.
   ///
   /// By default, the wrap layout is horizontal and both the children and the
@@ -236,6 +250,7 @@ class AnimatedRenderWrap extends RenderBox
     Clip clipBehavior = Clip.none,
     required AnimationController animation,
     double sensitivity = 5.0,
+    // Simulation Function(Offset position, Offset velocity)? moveSimulationConstructor,
   })  : _direction = direction,
         _alignment = alignment,
         _spacing = spacing,
@@ -268,6 +283,8 @@ class AnimatedRenderWrap extends RenderBox
     _direction = value;
     markNeedsLayout();
   }
+
+  // Simulation Function(Offset position, Offset velocity)? moveSimulationConstructor;
 
   /// How the children within a run should be placed in the main axis.
   ///
@@ -505,13 +522,13 @@ class AnimatedRenderWrap extends RenderBox
   final LayerHandle<ClipRectLayer> _clipRectLayer =
       LayerHandle<ClipRectLayer>();
 
-  // the only reason we have to store this is that we're ordinarily not allowed to access the size during performLayout until after we've written it. Not sure why.
+  // the only reason we have to store this is that we're ordinarily not allowed to access the size during performLayout until after we've written it. Not sure why. We need a previousSize for animation. Not because we animate size changes but because it lets us comensiate for probable offset changes. See the stuff we do with the given alignment in performLayout.
   Size? previousSize;
 
   @override
   void setupParentData(RenderBox child) {
-    if (child.parentData is! AnimatedWrapParentData) {
-      child.parentData = AnimatedWrapParentData();
+    if (child.parentData is! AnFlowParentData) {
+      child.parentData = AnFlowParentData();
     }
   }
 
@@ -522,7 +539,7 @@ class AnimatedRenderWrap extends RenderBox
         double width = 0.0;
         RenderBox? child = firstChild;
         while (child != null) {
-          width = math.max(width, child.getMinIntrinsicWidth(double.infinity));
+          width = max(width, child.getMinIntrinsicWidth(double.infinity));
           child = childAfter(child);
         }
         return width;
@@ -556,8 +573,7 @@ class AnimatedRenderWrap extends RenderBox
         double height = 0.0;
         RenderBox? child = firstChild;
         while (child != null) {
-          height =
-              math.max(height, child.getMinIntrinsicHeight(double.infinity));
+          height = max(height, child.getMinIntrinsicHeight(double.infinity));
           child = childAfter(child);
         }
         return height;
@@ -683,14 +699,14 @@ class AnimatedRenderWrap extends RenderBox
       // There must be at least one child before we move on to the next run.
       if (childCount > 0 &&
           runMainAxisExtent + childMainAxisExtent + spacing > mainAxisLimit) {
-        mainAxisExtent = math.max(mainAxisExtent, runMainAxisExtent);
+        mainAxisExtent = max(mainAxisExtent, runMainAxisExtent);
         crossAxisExtent += runCrossAxisExtent + runSpacing;
         runMainAxisExtent = 0.0;
         runCrossAxisExtent = 0.0;
         childCount = 0;
       }
       runMainAxisExtent += childMainAxisExtent;
-      runCrossAxisExtent = math.max(runCrossAxisExtent, childCrossAxisExtent);
+      runCrossAxisExtent = max(runCrossAxisExtent, childCrossAxisExtent);
       if (childCount > 0) {
         runMainAxisExtent += spacing;
       }
@@ -698,7 +714,7 @@ class AnimatedRenderWrap extends RenderBox
       child = childAfter(child);
     }
     crossAxisExtent += runCrossAxisExtent;
-    mainAxisExtent = math.max(mainAxisExtent, runMainAxisExtent);
+    mainAxisExtent = max(mainAxisExtent, runMainAxisExtent);
 
     return constraints.constrain(switch (direction) {
       Axis.horizontal => Size(mainAxisExtent, crossAxisExtent),
@@ -708,7 +724,7 @@ class AnimatedRenderWrap extends RenderBox
 
   static Size _getChildSize(RenderBox child) => child.size;
   static void _setChildPosition(Offset offset, RenderBox child) {
-    (child.parentData! as AnimatedWrapParentData).offset = offset;
+    (child.parentData! as AnFlowParentData).offset = offset;
   }
 
   bool _hasVisualOverflow = false;
@@ -727,19 +743,17 @@ class AnimatedRenderWrap extends RenderBox
         _computeRuns(constraints, ChildLayoutHelper.layoutChild);
     final _AxisSize containerAxisSize =
         childrenAxisSize.applyConstraints(constraints, direction);
-    // omg we're not allowed to do this. How do I respond to size changes q_q (I guess I can just make another copy of size)
     size = containerAxisSize.toSize(direction);
     final _AxisSize freeAxisSize = containerAxisSize - childrenAxisSize;
     _hasVisualOverflow =
         freeAxisSize.mainAxisExtent < 0.0 || freeAxisSize.crossAxisExtent < 0.0;
 
-    // record positions prior to layout change
+    // record positions prior to layout change for animation purposes
     bool needsAnimation = false;
     RenderBox? child = firstChild;
-    final List<AnimatedWrapParentData> setAfterLayout =
-        <AnimatedWrapParentData>[];
+    final List<AnFlowParentData> setAfterLayout = <AnFlowParentData>[];
     while (child != null) {
-      final cpd = child.parentData! as AnimatedWrapParentData;
+      final cpd = child.parentData! as AnFlowParentData;
       // wondering if we should use a simulator parameter here, but for now, we'll just use the one DynamicEaseInOutSimulation behavior directly.
       // to implement that, you'd need to store the simulation in the parentData. The Simulator type would have to be configured with a constructor that takes a position and a velocity and is called on initalizing the wrap item.
       // oh, you'll also have to get rid of _motionAnimation and _animation and continue calling for repaints until all simulations are `isDone`.
@@ -767,6 +781,8 @@ class AnimatedRenderWrap extends RenderBox
     for (final cpd in setAfterLayout) {
       cpd.previousOffset = cpd.offset;
     }
+
+    // correct the previousOffsets if needed:
     // we adjust previousOffsets depending on alignment if there was a size change. This makes it possible to prevent certain animation discontinuities. EG: If you had extra space on the right, but were then shortened, you would never expect the children to glitch to the left before animating back. Yet if you reverse the scene and do that (size change for a right-aligned wrap), that actually does happen! We address that here.
     if (previousSize != null && size != previousSize) {
       // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also aniamte movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
@@ -778,7 +794,7 @@ class AnimatedRenderWrap extends RenderBox
         for (RenderBox? child = firstChild;
             child != null;
             child = childAfter(child)) {
-          final parentData = child.parentData! as AnimatedWrapParentData;
+          final parentData = child.parentData! as AnFlowParentData;
           parentData.previousOffset = parentData.previousOffset + Offset(dx, 0);
         }
       }
@@ -790,7 +806,7 @@ class AnimatedRenderWrap extends RenderBox
         for (RenderBox? child = firstChild;
             child != null;
             child = childAfter(child)) {
-          final parentData = child.parentData! as AnimatedWrapParentData;
+          final parentData = child.parentData! as AnFlowParentData;
           parentData.previousOffset = parentData.previousOffset + Offset(dx, 0);
         }
       }
@@ -802,7 +818,7 @@ class AnimatedRenderWrap extends RenderBox
         for (RenderBox? child = firstChild;
             child != null;
             child = childAfter(child)) {
-          final parentData = child.parentData! as AnimatedWrapParentData;
+          final parentData = child.parentData! as AnFlowParentData;
           parentData.previousOffset = parentData.previousOffset + Offset(0, dy);
         }
       }
@@ -814,7 +830,7 @@ class AnimatedRenderWrap extends RenderBox
         for (RenderBox? child = firstChild;
             child != null;
             child = childAfter(child)) {
-          final parentData = child.parentData! as AnimatedWrapParentData;
+          final parentData = child.parentData! as AnFlowParentData;
           parentData.previousOffset = parentData.previousOffset + Offset(0, dy);
         }
       }
@@ -822,9 +838,10 @@ class AnimatedRenderWrap extends RenderBox
     }
     previousSize = size;
 
+    /// check if we need to animate
     child = firstChild;
     while (child != null) {
-      final parentData = child.parentData! as AnimatedWrapParentData;
+      final parentData = child.parentData! as AnFlowParentData;
 
       if (!parentData.previousOffset.dx.isNaN) {
         if ((parentData.offset - parentData.previousOffset).distance >
@@ -841,9 +858,9 @@ class AnimatedRenderWrap extends RenderBox
     }
   }
 
+  // Look ahead, creates a new run if incorporating the child would exceed the allowed line width.
   (_AxisSize childrenSize, List<_RunMetrics> runMetrics) _computeRuns(
       BoxConstraints constraints, ChildLayouter layoutChild) {
-    assert(firstChild != null);
     final (BoxConstraints childConstraints, double mainAxisLimit) =
         switch (direction) {
       Axis.horizontal => (
@@ -858,30 +875,85 @@ class AnimatedRenderWrap extends RenderBox
 
     final (bool flipMainAxis, _) = _areAxesFlipped;
     final double spacing = this.spacing;
-    final List<_RunMetrics> runMetrics = <_RunMetrics>[];
+    bool canFlex = mainAxisLimit.isFinite;
 
+    final List<_RunMetrics> runMetrics = <_RunMetrics>[];
     _RunMetrics? currentRun;
     _AxisSize childrenAxisSize = _AxisSize.empty;
+
+    // does the flex calculations
+    void completeRun(_RunMetrics run) {
+      final nextChild = flipMainAxis ? childBefore : childAfter;
+      RenderBox? child = run.leadingFlexChild;
+      double spareSpacePerFlex =
+          max(0, mainAxisLimit - run.axisSize.mainAxisExtent) / run.flexTotal;
+      while (child != null) {
+        final (double flex, FlexFit flexFit) = _flexFitOf(child);
+        double assignedSpan = spareSpacePerFlex * flex;
+        BoxConstraints constraints =
+            _AxisSize(mainAxisExtent: assignedSpan, crossAxisExtent: 0.0)
+                .toBoxConstraints(direction, flexFit == FlexFit.tight);
+        final childSize = _AxisSize.fromSize(
+            size: layoutChild(child, constraints), direction: direction);
+        run.axisSize += childSize;
+        run.childCount += 1;
+        child = nextChild(child);
+      }
+      childrenAxisSize += run.axisSize.flipped;
+    }
+
+    // first pass, do a dry layout to get pre-flex row sizes
     for (RenderBox? child = firstChild;
         child != null;
         child = childAfter(child)) {
-      final _AxisSize childSize = _AxisSize.fromSize(
-          size: layoutChild(child, childConstraints), direction: direction);
-      final _RunMetrics? newRun = currentRun == null
-          ? _RunMetrics(child, childSize)
-          : currentRun.tryAddingNewChild(
-              child, childSize, flipMainAxis, spacing, mainAxisLimit);
-      if (newRun != null) {
-        runMetrics.add(newRun);
-        childrenAxisSize += currentRun?.axisSize.flipped ?? _AxisSize.empty;
-        currentRun = newRun;
+      double flex = _flexOf(child);
+      // create a new run if needed
+      if (currentRun == null) {
+        currentRun = _RunMetrics();
+        runMetrics.add(currentRun);
+      }
+      // if flex, we can't size it until we know the non-flex children sizes
+      if (canFlex && flex > 0) {
+        currentRun.flexTotal += flex;
+        currentRun.childCount += 1;
+        currentRun.leadingFlexChild =
+            flipMainAxis ? child : currentRun.leadingFlexChild ?? child;
+      } else {
+        final _AxisSize childSize = _AxisSize.fromSize(
+            size: layoutChild(child, childConstraints), direction: direction);
+        // if we've exceeded the main axis limit, complete the current run and start a new one
+        if (currentRun.axisSize.mainAxisExtent +
+                childSize.mainAxisExtent +
+                spacing >
+            mainAxisLimit + precisionErrorTolerance) {
+          completeRun(currentRun);
+          currentRun = _RunMetrics();
+          currentRun.axisSize = childSize;
+          currentRun.leadingChild = child;
+          currentRun.childCount += 1;
+          runMetrics.add(currentRun);
+        }
+
+        currentRun.axisSize += childSize +
+            _AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
+        currentRun.childCount += 1;
+        // yeah it traverses them backwards in _positionChildren if flipMainAxis.
+        if (flipMainAxis) {
+          currentRun.leadingChild = child;
+        }
       }
     }
+    if (currentRun != null) {
+      completeRun(currentRun);
+    }
+
+    // distribute spacing between runs
     assert(runMetrics.isNotEmpty);
     final double totalRunSpacing = runSpacing * (runMetrics.length - 1);
     childrenAxisSize +=
         _AxisSize(mainAxisExtent: totalRunSpacing, crossAxisExtent: 0.0) +
             currentRun!.axisSize.flipped;
+
     return (childrenAxisSize.flipped, runMetrics);
   }
 
@@ -895,12 +967,12 @@ class AnimatedRenderWrap extends RenderBox
 
     final double spacing = this.spacing;
 
-    final double crossAxisFreeSpace =
-        math.max(0.0, freeAxisSize.crossAxisExtent);
+    final double crossAxisFreeSpace = max(0.0, freeAxisSize.crossAxisExtent);
 
     final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
     final AnimatedWrapCrossAlignment effectiveCrossAlignment =
         flipCrossAxis ? crossAxisAlignment._flipped : crossAxisAlignment;
+
     final (double runLeadingSpace, double runBetweenSpace) =
         runAlignment._distributeSpace(
       crossAxisFreeSpace,
@@ -917,18 +989,18 @@ class AnimatedRenderWrap extends RenderBox
       final double runCrossAxisExtent = run.axisSize.crossAxisExtent;
       final int childCount = run.childCount;
 
-      final double mainAxisFreeSpace = math.max(
+      final double mainAxisFreeSpace = max(
           0.0, containerAxisSize.mainAxisExtent - run.axisSize.mainAxisExtent);
+
       final (double childLeadingSpace, double childBetweenSpace) =
           alignment._distributeSpace(
               mainAxisFreeSpace, spacing, childCount, flipMainAxis);
 
       double childMainAxisOffset = childLeadingSpace;
 
-      int remainingChildCount = run.childCount;
       for (RenderBox? child = run.leadingChild;
-          child != null && remainingChildCount > 0;
-          child = nextChild(child), remainingChildCount -= 1) {
+          child != null;
+          child = nextChild(child)) {
         final _AxisSize(
           mainAxisExtent: double childMainAxisExtent,
           crossAxisExtent: double childCrossAxisExtent
@@ -955,7 +1027,8 @@ class AnimatedRenderWrap extends RenderBox
     // Paint each child with its current animated position
     RenderBox? child = firstChild;
     while (child != null) {
-      final parentData = child.parentData! as AnimatedWrapParentData;
+      final parentData = child.parentData! as AnFlowParentData;
+      // todo: When we switch to Simulation objects, this is also a good idea
       final animatedOffset = !parentData.previousOffset.dx.isNaN
           ? easeOffset(
               parentData.previousOffset,
@@ -1311,6 +1384,15 @@ class AnimatedWrapState extends State<AnimatedWrap>
   @override
   void initState() {
     super.initState();
+    assert(() {
+      for (final child in widget.children) {
+        if (child.key == null) {
+          throw FlutterError('All children of AnimatedWrap must have keys.\n'
+              'This is required for proper animation tracking when children are added, removed, or reordered.');
+        }
+      }
+      return true;
+    }());
     // if either is non-null, provide a default for the other.
     if (widget.insertionBuilder != null) {
       _insertionBuilder = widget.insertionBuilder;
