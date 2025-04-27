@@ -250,6 +250,14 @@ class DynamicEaseInOutSimulation extends Simulation {
         startVelocity = 0.0,
         super();
 
+  DynamicEaseInOutSimulation.constructorFrom(
+      double prevx, double prevdx, double newTarget,
+      {required this.duration})
+      : startValue = prevx,
+        endValue = newTarget,
+        startVelocity = prevdx,
+        super();
+
   /// use this when you want the first targetting to reach its destination instantly regardless of transitionDuration
   DynamicEaseInOutSimulation.unset({required this.duration})
       : startValue = double.nan,
@@ -367,48 +375,78 @@ class DynamicEaseInOutAnimationController extends Animation<double>
   }
 }
 
-class SmoothOffset extends Animation<Offset>
+/// regular `Simulation`s target a one-dimensional number, this one targets a point in 2D space, though it's usually constructed by just taping together two `Simulations` in a `DuoMovementSimulation`
+abstract class OffsetSimulation {
+  Offset x(double time);
+  Offset dx(double time);
+  bool isDone(double time);
+}
+
+/// Forms a 2d simulation by just combining two `Simulation`s in the x and y directions. Which is imperfect because instead of modelling an object that aims one thruster optimally, it's like it models an object with four thrusters pointing in cardinal directions, which is a weird object, but it looks fine, perhaps even better.
+class DuoMovementSimulation extends OffsetSimulation {
+  final Simulation simulationx;
+  final Simulation simulationy;
+  DuoMovementSimulation({required this.simulationx, required this.simulationy});
+  @override
+  Offset x(double time) => Offset(simulationx.x(time), simulationy.x(time));
+  @override
+  Offset dx(double time) => Offset(simulationx.dx(time), simulationy.dx(time));
+  @override
+  bool isDone(double time) =>
+      simulationx.isDone(time) && simulationy.isDone(time);
+}
+
+typedef MovementSimulationConstructor = OffsetSimulation Function(
+    Offset prevx, Offset prevdx, Offset newTarget);
+
+/// basic movement constructors for your movement constructor needs
+MovementSimulationConstructor duoEaseMovementConstructorOf(Duration duration) =>
+    (prevx, prevdx, newTarget) => DuoMovementSimulation(
+        simulationx: DynamicEaseInOutSimulation(prevx.dx,
+            duration: duration.inMicroseconds.toDouble()),
+        simulationy: DynamicEaseInOutSimulation(prevx.dy,
+            duration: duration.inMicroseconds.toDouble()));
+
+/// An animation controller that can be told to target a position, and it smoothly moves to it
+class MovementSimulationAnimationController extends Animation<Offset>
     with
         AnimationEagerListenerMixin,
         AnimationLocalListenersMixin,
         AnimationLocalStatusListenersMixin {
-  final DynamicEaseInOutSimulation xSimulation;
-  final DynamicEaseInOutSimulation ySimulation;
   late final Ticker _ticker;
-  Offset _value;
-  Duration duration;
   Duration lastElapsedDuration;
+  Offset _value;
+  Offset _targetValue;
+  late OffsetSimulation _curSimulation;
+  MovementSimulationConstructor simulationConstructor;
 
-  SmoothOffset({
-    required Offset value,
-    required this.duration,
+  MovementSimulationAnimationController({
+    required Offset initialValue,
+    Offset initialVelocity = Offset.zero,
+    required this.simulationConstructor,
     required TickerProvider vsync,
-  })  : _value = value,
-        xSimulation = DynamicEaseInOutSimulation(
-          value.dx,
-          duration: duration.inMicroseconds.toDouble(),
-        ),
-        ySimulation = DynamicEaseInOutSimulation(
-          value.dy,
-          duration: duration.inMicroseconds.toDouble(),
-        ),
-        lastElapsedDuration = duration {
+  })  : _value = initialValue,
+        lastElapsedDuration = Duration.zero,
+        _targetValue = initialValue {
     _ticker = vsync.createTicker(_tick);
+    _curSimulation =
+        simulationConstructor(initialValue, initialVelocity, initialValue);
   }
 
-  Offset get targetValue => Offset(xSimulation.endValue, ySimulation.endValue);
+  Offset get targetValue => _targetValue;
 
   @override
   Offset get value => _value;
 
   @override
   AnimationStatus get status {
-    if (lastElapsedDuration >= duration) return AnimationStatus.completed;
+    if (_curSimulation.isDone(lastElapsedDuration.inMicroseconds.toDouble()))
+      return AnimationStatus.completed;
     return AnimationStatus.forward;
   }
 
   void _tick(Duration elapsed) {
-    if (elapsed > duration) {
+    if (_curSimulation.isDone(elapsed.inMicroseconds.toDouble())) {
       _value = targetValue;
       _ticker.stop();
       notifyListeners();
@@ -416,19 +454,17 @@ class SmoothOffset extends Animation<Offset>
       return;
     }
     lastElapsedDuration = elapsed;
-    _value = Offset(
-      xSimulation.x(elapsed.inMicroseconds.toDouble()),
-      ySimulation.x(elapsed.inMicroseconds.toDouble()),
-    );
+    _value = _curSimulation.x(elapsed.inMicroseconds.toDouble());
     notifyListeners();
   }
 
   void target(Offset target) {
-    if (_value.dx != target.dx || _value.dy != target.dy) {
-      xSimulation.target(target.dx,
-          time: lastElapsedDuration.inMicroseconds.toDouble());
-      ySimulation.target(target.dy,
-          time: lastElapsedDuration.inMicroseconds.toDouble());
+    if (_value != target || _targetValue != target) {
+      _targetValue = target;
+      _curSimulation = simulationConstructor(
+          _value,
+          _curSimulation.dx(lastElapsedDuration.inMicroseconds.toDouble()),
+          target);
       lastElapsedDuration = const Duration(milliseconds: 0);
       bool tickingWasActive = _ticker.isActive;
       _ticker.stop();
@@ -445,3 +481,98 @@ class SmoothOffset extends Animation<Offset>
     _ticker.dispose();
   }
 }
+
+// just did a thing to make this super parametizable, if it works, delete this and the below commented out legacy code
+class SmoothOffset extends MovementSimulationAnimationController {
+  SmoothOffset({
+    required super.initialValue,
+    super.initialVelocity = Offset.zero,
+    required super.vsync,
+    Duration duration = const Duration(milliseconds: 200),
+  }) : super(
+            simulationConstructor: (prevx, prevdx, newTarget) =>
+                DuoMovementSimulation(
+                    simulationx: DynamicEaseInOutSimulation(prevx.dx,
+                        duration: duration.inMicroseconds.toDouble()),
+                    simulationy: DynamicEaseInOutSimulation(prevx.dy,
+                        duration: duration.inMicroseconds.toDouble())));
+}
+
+// class SmoothOffset extends Animation<Offset>
+//     with
+//         AnimationEagerListenerMixin,
+//         AnimationLocalListenersMixin,
+//         AnimationLocalStatusListenersMixin {
+//   final DynamicEaseInOutSimulation xSimulation;
+//   final DynamicEaseInOutSimulation ySimulation;
+//   late final Ticker _ticker;
+//   Offset _value;
+//   Duration duration;
+//   Duration lastElapsedDuration;
+
+//   SmoothOffset({
+//     required Offset value,
+//     required this.duration,
+//     required TickerProvider vsync,
+//   })  : _value = value,
+//         xSimulation = DynamicEaseInOutSimulation(
+//           value.dx,
+//           duration: duration.inMicroseconds.toDouble(),
+//         ),
+//         ySimulation = DynamicEaseInOutSimulation(
+//           value.dy,
+//           duration: duration.inMicroseconds.toDouble(),
+//         ),
+//         lastElapsedDuration = duration {
+//     _ticker = vsync.createTicker(_tick);
+//   }
+
+//   Offset get targetValue => Offset(xSimulation.endValue, ySimulation.endValue);
+
+//   @override
+//   Offset get value => _value;
+
+//   @override
+//   AnimationStatus get status {
+//     if (lastElapsedDuration >= duration) return AnimationStatus.completed;
+//     return AnimationStatus.forward;
+//   }
+
+//   void _tick(Duration elapsed) {
+//     if (elapsed > duration) {
+//       _value = targetValue;
+//       _ticker.stop();
+//       notifyListeners();
+//       notifyStatusListeners(AnimationStatus.completed);
+//       return;
+//     }
+//     lastElapsedDuration = elapsed;
+//     _value = Offset(
+//       xSimulation.x(elapsed.inMicroseconds.toDouble()),
+//       ySimulation.x(elapsed.inMicroseconds.toDouble()),
+//     );
+//     notifyListeners();
+//   }
+
+//   void target(Offset target) {
+//     if (_value.dx != target.dx || _value.dy != target.dy) {
+//       xSimulation.target(target.dx,
+//           time: lastElapsedDuration.inMicroseconds.toDouble());
+//       ySimulation.target(target.dy,
+//           time: lastElapsedDuration.inMicroseconds.toDouble());
+//       lastElapsedDuration = const Duration(milliseconds: 0);
+//       bool tickingWasActive = _ticker.isActive;
+//       _ticker.stop();
+//       _ticker.start();
+//       if (!tickingWasActive) {
+//         notifyStatusListeners(AnimationStatus.forward);
+//       }
+//     }
+//   }
+
+//   @override
+//   void dispose() {
+//     super.dispose();
+//     _ticker.dispose();
+//   }
+// }

@@ -1,6 +1,13 @@
 ## 0.9.1
 
-flex stuff:
+
+### failed project: Attempting to use Animation<Offset>s with Simulations to drive layout animation.
+
+I only realized right at the last moment that you can't animate layout on the widget level because the animation's response to the layout changes have to come through instantly, so you don't have time to generate a Transform.translate and wait for it to render, by that time, it'll render a glitch frame.
+
+So they really can't be driven by animations.
+
+### failed project: attempting to put flex in AnimationWrap:
 
 Putting flex in AnimatedWrap was a bad idea. This is a failed branch. Here I'll document what happened.
 

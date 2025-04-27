@@ -53,9 +53,8 @@ AnimatedWrap.material3(
 There's a nice example app at example/lib/main.dart
 
 ## roadmap
-- add flex functionality
-- add line count constraint (if the children must wrap over more lines than the constraint, then they'll push forward). I'm not 100% sure it's necessary since I'm pretty sure it's a layout error state for that to happen so we might as well just wrap if you're forced into that situation, or to put it another way, wrapping only happens in the same situations where the children wont squeeze into the first line no matter what. So really this task is thinking about that more.
-- given the above, we can make a very general "AnimatedFlex" container, and make AnimatedWrap a special case of AnimatedFlex.
+- ~~add flex functionality~~ create an animated flex container
+- ~~given the above, we can make a very general "AnimatedFlex" container, and make AnimatedWrap a special case of AnimatedFlex.~~ this turned out to be unworkable and if workable, impractical.
 - provide AnimatedColumn and AnimatedRow as a special case of AnimatedFlex, thereby fully addressing flutter's general lack of layout change animation.
 - add `double? rudeHeightLimit` to AnimatedWrap. If the height of a child is greater than this, it'll be given a line of its own.
 - add `double? minRunHeight` to AnimatedWrap, which ensures that runs will always be at least this tall.
@@ -63,6 +62,7 @@ There's a nice example app at example/lib/main.dart
 
 ### help wanted, would love to see
 - use a Simulation object + constructor (that takes a position and velocity) to do motion instead of only supporting the one parabolic easer I always use.
-- after that's done, offer other motion Simulations: eg, a bouncy one, or one that's similar to the very precise analytical one we have now but instead of assuming a fixed duration and finding the minimum acceleration that'll get there in that time, assumes a maximum rate of acceleration and finds the minimum duration to get there. Or one that's like smooth ease but where movement on the y axis is faster (it'll look more like a swoop). Or one where movement on the y axis uses a steeper ease curve (but I'm definitely not coding that one)
-- minor bug where removal positioneds jump to their target position instantly (*you can see it when you delete a lot while movement animation is still ongoing*). To fix this, will need to be able to transfer the simulation to the removal Positioned, so this depends on the above (currently we're not using actual Simulation objects for motion. There's a note in the code with further advice for this. Ask me if you need more help).
-- Consider allowing children without keys for those users who just want size change layout animation. We might actually not need to change much to get that to work. If you are a user who needs that, and doesn't also use insert, remove or reorder animations, say something, as I'm currently not sure whether yall actually exist.
+    - offer other default motion Simulations: eg, a bouncy one, or one that's similar to the very precise analytical one we have now but instead of assuming a fixed duration and finding the minimum acceleration that'll get there in that time, assumes a maximum rate of acceleration and finds the minimum duration to get there. Or one that's like smooth ease but where movement on the y axis is faster (it'll look more like a swoop). Or one where movement on the y axis uses a steeper ease curve (but I'm definitely not coding that one)
+    - now you can solve a minor bug where removal positioneds jump to their target position instantly (*you can see it when you delete a lot while movement animation is still ongoing*). To fix this, will need to be able to transfer the simulation to the removal Positioned, so this depends on the above (currently we're not using actual Simulation objects for motion. There's a note in the code with further advice for this. Ask me if you need more help).
+    - support transfering animated children from one animated container to another? (It would have to have a globalkey of course). This is going to have complicated rules to deal with z-sorting and clipping.
+- Consider allowing children without keys for those users who just want size change layout aniation. We might actually not need to change much to get that to work. If you are a user who needs that, and doesn't also use insert, remove or reorder animations, say something, as I'm currently not sure whether yall actually exist.

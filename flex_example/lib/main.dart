@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:animated_containers/animated_containers.dart';
+import 'package:animated_containers/animated_flex.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_touch_ripple/components/touch_ripple_context.dart';
@@ -166,9 +167,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 constraints: const BoxConstraints.expand(),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(8.0),
-                  child: AnimatedWrap.material3(
+                  child: AnimatedFlex(
+                    direction: Axis.horizontal,
                     spacing: 8,
-                    runSpacing: 8,
                     children: _items.toList(),
                   ),
                 ),
