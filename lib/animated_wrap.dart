@@ -101,6 +101,9 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
   // Simulation? simulation;
   // Simulation Function(Offset position, Offset velocity)? simulationFactory;
   // which can be set via a Flowable
+  // or maybe just:
+  void Function(Offset)?
+      offsetChanged; //which adds hind-target to the movement in the state
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
 }
@@ -648,7 +651,7 @@ class AnimatedRenderWrap extends RenderBox
         <AnimatedWrapParentData>[];
     while (child != null) {
       final cpd = child.parentData! as AnimatedWrapParentData;
-      cpd.key.currentState?.motion.target(cpd.offset);
+      cpd.key?.currentState?.motion.target(cpd.offset);
       // wondering if we should use a simulator parameter here, but for now, we'll just use the one DynamicEaseInOutSimulation behavior directly.
       // to implement that, you'd need to store the simulation in the parentData. The Simulator type would have to be configured with a constructor that takes a position and a velocity and is called on initalizing the wrap item.
       // oh, you'll also have to get rid of _motionAnimation and _animation and continue calling for repaints until all simulations are `isDone`.

@@ -1051,10 +1051,21 @@ class AnimatedRenderFlex extends RenderBox
     return defaultHitTestChildren(result, position: position);
   }
 
+  // replacing defaultPaint
+  void paintChildren(PaintingContext context, Offset offset) {
+    RenderBox? child = firstChild;
+    while (child != null) {
+      final AnimatedFlexParentData childParentData =
+          child.parentData! as AnimatedFlexParentData;
+      context.paintChild(child, childParentData.offset + offset);
+      child = childParentData.nextSibling;
+    }
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
     if (!_hasOverflow) {
-      defaultPaint(context, offset);
+      paintChildren(context, offset);
       return;
     }
 
@@ -1067,7 +1078,7 @@ class AnimatedRenderFlex extends RenderBox
       needsCompositing,
       offset,
       Offset.zero & size,
-      defaultPaint,
+      paintChildren,
       clipBehavior: clipBehavior,
       oldLayer: _clipRectLayer.layer,
     );
