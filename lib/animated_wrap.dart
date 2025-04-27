@@ -96,14 +96,10 @@ class _RunMetrics {
 
 /// Parent data for use with [AnimatedRenderWrap].
 class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
-  GlobalKey<AnimatedWrapItemState>? key;
   // todo: replace with:
   // Simulation? simulation;
   // Simulation Function(Offset position, Offset velocity)? simulationFactory;
   // which can be set via a Flowable
-  // or maybe just:
-  void Function(Offset)?
-      offsetChanged; //which adds hind-target to the movement in the state
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
 }
@@ -651,11 +647,9 @@ class AnimatedRenderWrap extends RenderBox
         <AnimatedWrapParentData>[];
     while (child != null) {
       final cpd = child.parentData! as AnimatedWrapParentData;
-      cpd.key?.currentState?.motion.target(cpd.offset);
       // wondering if we should use a simulator parameter here, but for now, we'll just use the one DynamicEaseInOutSimulation behavior directly.
       // to implement that, you'd need to store the simulation in the parentData. The Simulator type would have to be configured with a constructor that takes a position and a velocity and is called on initalizing the wrap item.
       // oh, you'll also have to get rid of _motionAnimation and _animation and continue calling for repaints until all simulations are `isDone`.
-
       if (!cpd.previousOffset.dx.isNaN) {
         final (Offset offset, Offset velocity) = easeValVelOffset(
           cpd.previousOffset,
@@ -1133,7 +1127,7 @@ class AnimatedWrap extends StatefulWidget {
 }
 
 class _Removal {
-  final AnimatedWrapItem item;
+  final _AnimatedWrapItem item;
   final Rect rect;
   _Removal(this.item, this.rect);
 }
@@ -1172,8 +1166,8 @@ class AnimatedWrapState extends State<AnimatedWrap>
     vsync: this,
     duration: widget.movementDuration,
   );
-  late HashMap<Key, AnimatedWrapItem> _childItems =
-      HashMap<Key, AnimatedWrapItem>();
+  late HashMap<Key, _AnimatedWrapItem> _childItems =
+      HashMap<Key, _AnimatedWrapItem>();
   final GlobalKey _stackKey = GlobalKey();
 
   /// we keep another one so that we can default-initialize them if the user fails to supply one or the other.
@@ -1184,6 +1178,10 @@ class AnimatedWrapState extends State<AnimatedWrap>
   final List<_Removal> _removingChildren = [];
   @override
   void dispose() {
+    for (final child in _childItems.values) {
+      child.insertionController?.dispose();
+      child.removalController?.dispose();
+    }
     _moveAnimator.dispose();
     super.dispose();
   }
@@ -1195,71 +1193,49 @@ class AnimatedWrapState extends State<AnimatedWrap>
     }
   }
 
-  AnimatedWrapItem _makeWrapFor(Widget child,
+  _AnimatedWrapItem _makeWrapFor(Widget child,
       {Duration delay = Duration.zero, bool duringInitState = false}) {
-    // defaults to a builder that just returns the child iff the animation is complete.
-
-    return AnimatedWrapItem(
-      key: GlobalKey(),
-      motion: duoEaseMovementConstructorOf(widget.movementDuration),
-      vsync: this,
-      insertionDelay: delay,
-      insertionDuration: _insertionDuration,
-      insertionBuilder: _insertionBuilder,
-      removalDuration: _removalDuration,
-      removalBuilder: _removalBuilder,
-      child: child,
-    );
-
-    // final moveController = SmoothOffset(
-    //     initialValue: Offset.zero,
-    //     vsync: this,
-    //     duration: widget.movementDuration);
-    // if (widget.staggeredInitialInsertionAnimation != null) {
-    //   _requireKey(child);
-    //   final insertingController = AnimationController(
-    //     vsync: this,
-    //     duration: delay + _insertionDuration,
-    //   );
-    //   insertingController.forward();
-    //   final removalController =
-    //       AnimationController(duration: _removalDuration, vsync: this);
-    //   return AnimatedWrapItem(
-    //     key: GlobalKey(),
-    //     movementController: moveController,
-    //     insertionController: insertingController,
-    //     insertionAnimation: CurvedAnimation(
-    //         parent: insertingController,
-    //         curve: Interval(
-    //             delay.inMilliseconds /
-    //                 (delay.inMilliseconds + _insertionDuration.inMilliseconds),
-    //             1.0)),
-    //     removalController: removalController,
-    //     removalAnimation: removalController,
-    //     removalBuilder: builderForBuilder(_removalBuilder),
-    //     insertionBuilder: builderForBuilder(_insertionBuilder),
-    //     child: child,
-    //   );
-    // } else {
-    //   final removalController = _removalBuilder != null
-    //       ? AnimationController(duration: _removalDuration, vsync: this)
-    //       : null;
-    //   final insertionController = _insertionBuilder != null && !duringInitState
-    //       ? AnimationController(duration: _insertionDuration, vsync: this)
-    //       : null;
-    //   insertionController?.forward();
-    //   return AnimatedWrapItem(
-    //     key: GlobalKey(),
-    //     insertionController: insertionController,
-    //     insertionAnimation: insertionController ?? kAlwaysCompleteAnimation,
-    //     removalController: removalController,
-    //     removalAnimation: removalController ?? kAlwaysCompleteAnimation,
-    //     movementController: moveController,
-    //     insertionBuilder: builderForBuilder(_insertionBuilder),
-    //     removalBuilder: builderForBuilder(_removalBuilder),
-    //     child: child,
-    //   );
-    // }
+    if (widget.staggeredInitialInsertionAnimation != null) {
+      _requireKey(child);
+      final insertingController = AnimationController(
+        vsync: this,
+        duration: delay + _insertionDuration,
+      );
+      insertingController.forward();
+      final removalController =
+          AnimationController(duration: _removalDuration, vsync: this);
+      return _AnimatedWrapItem(
+        key: GlobalKey(),
+        insertionController: insertingController,
+        insertionAnimation: CurvedAnimation(
+            parent: insertingController,
+            curve: Interval(
+                delay.inMilliseconds /
+                    (delay.inMilliseconds + _insertionDuration.inMilliseconds),
+                1.0)),
+        removalController: removalController,
+        removalAnimation: removalController,
+        removalBuilder: _removalBuilder,
+        insertingBuilder: _insertionBuilder,
+        child: child,
+      );
+    } else {
+      final removalController =
+          AnimationController(duration: _removalDuration, vsync: this);
+      final insertionController =
+          AnimationController(duration: _insertionDuration, vsync: this);
+      insertionController.forward();
+      return _AnimatedWrapItem(
+        key: GlobalKey(),
+        insertionController: insertionController,
+        insertionAnimation: insertionController,
+        removalController: removalController,
+        removalAnimation: removalController,
+        insertingBuilder: _insertionBuilder,
+        removalBuilder: _removalBuilder,
+        child: child,
+      );
+    }
   }
 
   @override
@@ -1268,7 +1244,6 @@ class AnimatedWrapState extends State<AnimatedWrap>
     assert(() {
       for (final child in widget.children) {
         if (child.key == null) {
-          // todo: consider removing this requirement, keyless children can just not animate, yeah?
           throw FlutterError('All children of AnimatedWrap must have keys.\n'
               'This is required for proper animation tracking when children are added, removed, or reordered.');
         }
@@ -1276,7 +1251,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
       return true;
     }());
 
-    // if either is non-null, provide a default for the other.
+    // provide defaults
     _insertionDuration =
         widget.insertionDuration ?? const Duration(milliseconds: 200);
     _insertionBuilder = widget.insertionBuilder ??
@@ -1287,7 +1262,6 @@ class AnimatedWrapState extends State<AnimatedWrap>
               child: child,
             ));
 
-    // if either is non-null, provide a default for the other.
     _removalBuilder = widget.removalBuilder ??
         (child, animation) => FadeTransition(
             opacity: animation,
@@ -1314,7 +1288,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
 
   void checkChildChanges(List<Widget> oldChildren, List<Widget> newChildren) {
     final previousChildItems = _childItems;
-    _childItems = HashMap<Key, AnimatedWrapItem>();
+    _childItems = HashMap<Key, _AnimatedWrapItem>();
     for (final child in newChildren) {
       _requireKey(child);
       _childItems[child.key!] =
@@ -1324,25 +1298,23 @@ class AnimatedWrapState extends State<AnimatedWrap>
     // insertion animation logic is already handled in _makeWrapFor above, if needed.
 
     for (final child in oldChildren) {
-      if (!_childItems.containsKey(child.key)) {
-        AnimatedWrapItem removing = previousChildItems[child.key]!;
-        final rk = removing.key as GlobalKey<AnimatedWrapItemState>;
+      if (_removalBuilder != null && !_childItems.containsKey(child.key)) {
+        _AnimatedWrapItem removing = previousChildItems[child.key]!;
         RenderBox? robj = (removing.key as GlobalKey)
             .currentContext
             ?.findRenderObject() as RenderBox?;
         Offset? o = robj?.localToGlobal(Offset.zero,
             ancestor: _stackKey.currentContext?.findRenderObject());
         Size? s = robj?.size;
-        final rcs = rk.currentState;
         if (o != null && s != null) {
-          rcs?.removalController.forward();
-          rcs?.removalController.addStatusListener((status) {
+          removing.removalController?.forward();
+          removing.removalController?.addStatusListener((status) {
             if (status == AnimationStatus.completed) {
               setState(() {
                 _removingChildren.removeWhere((r) => r.item == removing);
               });
-              rcs.removalController.dispose();
-              rcs.insertionController.dispose();
+              removing.removalController?.dispose();
+              removing.insertionController?.dispose();
             }
           });
 
@@ -1350,8 +1322,8 @@ class AnimatedWrapState extends State<AnimatedWrap>
             _removingChildren.add(_Removal(removing, o & s));
           });
         } else {
-          rcs?.removalController.dispose();
-          rcs?.insertionController.dispose();
+          removing.removalController?.dispose();
+          removing.insertionController?.dispose();
         }
       }
     }
@@ -1403,87 +1375,47 @@ class AnimatedWrapState extends State<AnimatedWrap>
 }
 
 /// the items that're put into the AnimatedWrapRender, where the animations take place. We need it to be a separate widget so that we can find the renderobject when we're doing removal positionings.
-class AnimatedWrapItem extends StatefulWidget {
+class _AnimatedWrapItem extends StatelessWidget {
   /// The widget to be displayed.
   final Widget child;
 
-  final Duration insertionDelay;
-  final Duration insertionDuration;
-  final Duration removalDuration;
-  final MovementSimulationConstructor motion;
-  final TickerProvider vsync;
+  /// managed by AnmatedWrap
+  /// The controller for the insertion animation. (null if the builder is null)
+  final AnimationController? insertionController;
+
+  /// The controller for the removal animation (null if the builder is null)
+  final AnimationController? removalController;
+
+  /// Generally just a cast of the insertion controller, sometimes augmented with a delay curve.
+  final Animation<double> insertionAnimation;
+
+  /// Generally just a cast of the removal controller, sometimes augmented with a delay curve.
+  final Animation<double> removalAnimation;
 
   /// The builder that wraps this widget when it's being inserted.
   final Widget Function(Widget child, Animation<double> controller)
-      insertionBuilder;
+      insertingBuilder;
 
   /// The builder that wraps this widget when it's being removed.
   final Widget Function(Widget child, Animation<double> controller)
       removalBuilder;
 
-  const AnimatedWrapItem({
+  const _AnimatedWrapItem({
     required this.child,
     super.key,
-    required this.insertionBuilder,
+    required this.insertingBuilder,
     required this.removalBuilder,
-    required this.motion,
-    required this.vsync,
-    required this.insertionDelay,
-    required this.insertionDuration,
-    required this.removalDuration,
+    this.insertionController,
+    this.removalController,
+    required this.insertionAnimation,
+    required this.removalAnimation,
   });
 
   @override
-  AnimatedWrapItemState createState() => AnimatedWrapItemState();
-}
-
-class AnimatedWrapItemState extends State<AnimatedWrapItem>
-    with TickerProviderStateMixin {
-  late AnimationController insertionController;
-  late AnimationController removalController;
-  late MovementSimulationAnimationController motion;
-
-  @override
-  void initState() {
-    super.initState();
-    motion = MovementSimulationAnimationController(
-        initialValue: Offset.zero,
-        vsync: this,
-        simulationConstructor: widget.motion);
-    removalController =
-        AnimationController(vsync: this, duration: widget.removalDuration);
-    insertionController = AnimationController(
-        vsync: this,
-        duration: widget.insertionDelay + widget.insertionDuration);
-    insertionController.forward();
-  }
-
-  @override
-  void dispose() {
-    insertionController.dispose();
-    removalController.dispose();
-    motion.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    Widget movement(Widget child) => AnimatedBuilder(
-        animation: motion,
-        builder: (context, child) =>
-            Transform.translate(offset: motion.value, child: child),
-        child: child);
-
-    Widget insertion(Widget child) => widget.insertionBuilder(
-        child,
-        delayAnimation(insertionController,
-            by: widget.insertionDelay,
-            total: widget.insertionDelay + widget.insertionDuration));
-
-    Widget removal(Widget child) =>
-        widget.removalBuilder(child, removalController);
-
-    return movement(insertion(removal(widget.child)));
+    // this mess is just, it uses the builder/controller if it's available, that's it, that's all.
+    return removalBuilder(
+        insertingBuilder(child, insertionAnimation), removalAnimation);
   }
 }
 
