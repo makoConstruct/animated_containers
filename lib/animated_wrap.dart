@@ -94,7 +94,7 @@ class _RunMetrics {
   RenderBox? leadingChild;
 }
 
-/// Parent data for use with [AnimatedRenderWrap].
+/// Parent data for use with [AnimatedWrapRender].
 class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
   // todo: replace with:
   // Simulation? simulation;
@@ -106,10 +106,10 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
 
 /// Displays its children in multiple horizontal or vertical runs.
 ///
-/// A [AnimatedRenderWrap] lays out each child and attempts to place the child adjacent
+/// A [AnimatedWrapRender] lays out each child and attempts to place the child adjacent
 /// to the previous child in the main axis, given by [direction], leaving
 /// [spacing] space in between. If there is not enough space to fit the child,
-/// [AnimatedRenderWrap] creates a new _run_ adjacent to the existing children in the
+/// [AnimatedWrapRender] creates a new _run_ adjacent to the existing children in the
 /// cross axis.
 ///
 /// After all the children have been allocated to runs, the children within the
@@ -121,7 +121,7 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
 ///
 /// When children change position, they are smoothly animated if the movement
 /// exceeds the [sensitivity] threshold.
-class AnimatedRenderWrap extends RenderBox
+class AnimatedWrapRender extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, AnimatedWrapParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, AnimatedWrapParentData> {
@@ -129,7 +129,7 @@ class AnimatedRenderWrap extends RenderBox
   ///
   /// By default, the wrap layout is horizontal and both the children and the
   /// runs are aligned to the start.
-  AnimatedRenderWrap({
+  AnimatedWrapRender({
     List<RenderBox>? children,
     Axis direction = Axis.horizontal,
     WrapAlignment alignment = WrapAlignment.start,
@@ -1448,8 +1448,8 @@ class _AnimatedWrapRender extends MultiChildRenderObjectWidget {
   final double sensitivity;
 
   @override
-  AnimatedRenderWrap createRenderObject(BuildContext context) {
-    return AnimatedRenderWrap(
+  AnimatedWrapRender createRenderObject(BuildContext context) {
+    return AnimatedWrapRender(
       direction: direction,
       alignment: alignment,
       spacing: spacing,
@@ -1466,7 +1466,7 @@ class _AnimatedWrapRender extends MultiChildRenderObjectWidget {
 
   @override
   void updateRenderObject(
-      BuildContext context, AnimatedRenderWrap renderObject) {
+      BuildContext context, AnimatedWrapRender renderObject) {
     renderObject
       ..direction = direction
       ..alignment = alignment

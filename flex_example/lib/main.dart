@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AnimatedWrap Demo',
+      title: 'animated flex',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
             seedColor: const Color.fromARGB(255, 34, 34, 34)),
@@ -38,7 +38,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final _random = Random();
-  final List<_WrapItem> _items = [];
+  final List<Widget> _items = [];
   int _nextId = 0;
   final FocusNode _focusNode = FocusNode();
   int _insertButtonPressCount = 0;
@@ -52,22 +52,48 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  _WrapItem _createRandomItem() {
+  Widget _createRandomItem() {
     final (Color, Color) colors = _getRandomColors(_random);
     final mid = _nextId++;
-    return _WrapItem(
-      id: mid,
+    bool isExpandy = _random.nextDouble() > 0.3;
+    final width =
+        lengthDistribution[_random.nextInt(lengthDistribution.length)];
+    return AnFlexible(
       key: ValueKey(mid),
-      width: lengthDistribution[_random.nextInt(lengthDistribution.length)],
-      backgroundColor: colors.$1,
-      color: colors.$2,
-      onTap: () => _removeItem(mid),
+      flex: isExpandy ? 1 : 0,
+      fit: FlexFit.tight,
+      child: Container(
+        constraints: BoxConstraints(minWidth: width),
+        child: Material(
+          color: colors.$1,
+          borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.hardEdge,
+          // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
+          child: ourTouchRipple(
+            onTap: () => _removeItem(mid),
+            color: const Color.fromARGB(255, 255, 255, 255),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 8.0,
+              ),
+              child: Text(
+                '$mid',
+                style: TextStyle(
+                  color: colors.$2,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   void _removeItem(int id) {
     setState(() {
-      _items.removeWhere((item) => item.id == id);
+      _items.removeWhere((item) => item.key == ValueKey(id));
     });
   }
 
@@ -140,7 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('animated wrap'),
+        title: const Text('animated flex'),
       ),
       body: KeyboardListener(
         focusNode: _focusNode,
@@ -164,7 +190,8 @@ class _MyHomePageState extends State<MyHomePage> {
             alignment: Alignment.bottomCenter,
             children: [
               Container(
-                constraints: const BoxConstraints.expand(),
+                constraints: const BoxConstraints(
+                    minHeight: double.infinity, maxWidth: 700),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(8.0),
                   child: AnimatedFlex(
@@ -240,53 +267,6 @@ class OurButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
           child: Text(text, style: theme.textTheme.bodyLarge),
-        ),
-      ),
-    );
-  }
-}
-
-class _WrapItem extends StatelessWidget {
-  final int id;
-  final double width;
-  final Color color;
-  final Color backgroundColor;
-  final VoidCallback onTap;
-
-  const _WrapItem({
-    super.key,
-    required this.id,
-    required this.width,
-    required this.color,
-    required this.backgroundColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(minWidth: width),
-      child: Material(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.hardEdge,
-        // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
-        child: ourTouchRipple(
-          onTap: onTap,
-          color: const Color.fromARGB(255, 255, 255, 255),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 8.0,
-            ),
-            child: Text(
-              '$id',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
         ),
       ),
     );

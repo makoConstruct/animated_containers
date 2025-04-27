@@ -6,7 +6,10 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:collection'; // For HashMap
+import 'package:flutter/scheduler.dart'; // Potentially for TickerProviderStateMixin if not already imported implicitly
 
+import 'package:animated_containers/retargetable_easers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -84,7 +87,7 @@ class AnimatedFlexParentData extends ContainerBoxParentData<RenderBox> {
   /// non-zero, the amount of space the child's can occupy in the main axis is
   /// determined by dividing the free space (after placing the inflexible
   /// children) according to the flex factors of the flexible children.
-  int? flex;
+  double? flex;
 
   /// How a flexible child is inscribed into the available space.
   ///
@@ -93,7 +96,10 @@ class AnimatedFlexParentData extends ContainerBoxParentData<RenderBox> {
   /// [FlexFit.tight], the child is required to fill the available space. If the
   /// fit is [FlexFit.loose], the child can be at most as large as the available
   /// space (but is allowed to be smaller).
-  FlexFit? fit;
+  FlexFit fit = FlexFit.loose;
+
+  /// set this to false if the widget animates its own size changes. AnimatedFlex, for instance, does.
+  bool shouldAnimateSize = true;
 
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
@@ -180,7 +186,9 @@ class AnimatedRenderFlex extends RenderBox
     VerticalDirection verticalDirection = VerticalDirection.down,
     TextBaseline? textBaseline,
     Clip clipBehavior = Clip.none,
+    required AnimationController animation,
     double spacing = 0.0,
+    required double sensitivity,
   })  : _direction = direction,
         _mainAxisAlignment = mainAxisAlignment,
         _mainAxisSize = mainAxisSize,
@@ -189,8 +197,11 @@ class AnimatedRenderFlex extends RenderBox
         _verticalDirection = verticalDirection,
         _textBaseline = textBaseline,
         _clipBehavior = clipBehavior,
+        _animation = animation,
         _spacing = spacing,
+        _sensitivity = sensitivity,
         assert(spacing >= 0.0) {
+    _animation.addListener(markNeedsPaint);
     addAll(children);
   }
 
@@ -326,6 +337,20 @@ class AnimatedRenderFlex extends RenderBox
       _textBaseline = value;
       markNeedsLayout();
     }
+  }
+
+  AnimationController _animation;
+  AnimationController get animation => _animation;
+  set animation(AnimationController value) {
+    if (_animation == value) return;
+    _animation.removeListener(markNeedsPaint);
+    _animation = value;
+    _animation.addListener(markNeedsPaint);
+  }
+
+  double _sensitivity;
+  set sensitivity(double value) {
+    if (_sensitivity != value) _sensitivity = value;
   }
 
   bool get _debugHasNecessaryDirections {
@@ -471,7 +496,7 @@ class AnimatedRenderFlex extends RenderBox
       for (RenderBox? child = firstChild;
           child != null;
           child = childAfter(child)) {
-        final int flex = _getFlex(child);
+        final double flex = _getFlex(child);
         totalFlex += flex;
         if (flex > 0) {
           final double flexFraction = childSize(child, extent) / flex;
@@ -566,7 +591,7 @@ class AnimatedRenderFlex extends RenderBox
     };
   }
 
-  static int _getFlex(RenderBox child) {
+  static double _getFlex(RenderBox child) {
     final AnimatedFlexParentData childParentData =
         child.parentData! as AnimatedFlexParentData;
     return childParentData.flex ?? 0;
@@ -575,7 +600,7 @@ class AnimatedRenderFlex extends RenderBox
   static FlexFit _getFit(RenderBox child) {
     final AnimatedFlexParentData childParentData =
         child.parentData! as AnimatedFlexParentData;
-    return childParentData.fit ?? FlexFit.tight;
+    return childParentData.fit;
   }
 
   bool get _isBaselineAligned {
@@ -704,7 +729,7 @@ class AnimatedRenderFlex extends RenderBox
         _constraintsForNonFlexChild(constraints);
     BoxConstraints constraintsForChild(RenderBox child) {
       final double? spacePerFlex = sizes.spacePerFlex;
-      final int flex;
+      final double flex;
       return spacePerFlex != null && (flex = _getFlex(child)) > 0
           ? _constraintsForFlexChild(child, constraints, flex * spacePerFlex)
           : nonFlexConstraints;
@@ -788,7 +813,7 @@ class AnimatedRenderFlex extends RenderBox
       final bool canFlex = maxMainSize < double.infinity;
       RenderBox? child = firstChild;
       while (child != null) {
-        final int flex = _getFlex(child);
+        final double flex = _getFlex(child);
         if (flex > 0) {
           final String identity =
               _direction == Axis.horizontal ? 'row' : 'column';
@@ -899,7 +924,7 @@ class AnimatedRenderFlex extends RenderBox
         : null;
 
     // The first pass lays out non-flex children and computes total flex.
-    int totalFlex = 0;
+    double totalFlex = 0;
     RenderBox? firstFlexChild;
     _AscentDescent accumulatedAscentDescent = _AscentDescent.none;
     // Initially, accumulatedSize is the sum of the spaces between children in the main axis.
@@ -908,7 +933,7 @@ class AnimatedRenderFlex extends RenderBox
     for (RenderBox? child = firstChild;
         child != null;
         child = childAfter(child)) {
-      final int flex;
+      final double flex;
       if (canFlex && (flex = _getFlex(child)) > 0) {
         totalFlex += flex;
         firstFlexChild ??= child;
@@ -938,7 +963,7 @@ class AnimatedRenderFlex extends RenderBox
     for (RenderBox? child = firstFlexChild;
         child != null && totalFlex > 0;
         child = childAfter(child)) {
-      final int flex = _getFlex(child);
+      final double flex = _getFlex(child);
       if (flex == 0) {
         continue;
       }
@@ -1024,6 +1049,7 @@ class AnimatedRenderFlex extends RenderBox
     // Position all children in visual order: starting from the top-left child and
     // work towards the child that's farthest away from the origin.
     double childMainPosition = leadingSpace;
+    bool needsAnimation = false;
     for (RenderBox? child = topLeftChild;
         child != null;
         child = nextChild(child)) {
@@ -1036,13 +1062,42 @@ class AnimatedRenderFlex extends RenderBox
           ? baselineOffset - childBaselineOffset!
           : _getChildCrossAxisOffset(crossAxisAlignment,
               crossAxisExtent - _getCrossSize(child.size), flipCrossAxis);
-      final AnimatedFlexParentData childParentData =
+      final AnimatedFlexParentData cpd =
           child.parentData! as AnimatedFlexParentData;
-      childParentData.offset = switch (direction) {
+
+      // Calculate the target offset for this layout pass
+      final Offset newOffset = switch (direction) {
         Axis.horizontal => Offset(childMainPosition, childCrossPosition),
         Axis.vertical => Offset(childCrossPosition, childMainPosition),
       };
+
+      if (!cpd.previousOffset.dx.isNaN) {
+        final (Offset offset, Offset velocity) = easeValVelOffset(
+          cpd.previousOffset,
+          cpd.offset,
+          0,
+          1,
+          _animation.value,
+          cpd.previousVelocity,
+        );
+        cpd.previousOffset = offset;
+        cpd.previousVelocity = velocity;
+
+        if ((newOffset - cpd.offset).distance > _sensitivity) {
+          needsAnimation = true;
+        }
+      } else {
+        // has no previousPosition, so shouldn't animate
+        cpd.previousOffset = newOffset;
+        cpd.previousVelocity = Offset.zero;
+      }
+
+      cpd.offset = newOffset;
       childMainPosition += _getMainSize(child.size) + betweenSpace;
+    }
+
+    if (needsAnimation) {
+      _animation.forward(from: 0);
     }
   }
 
@@ -1055,10 +1110,26 @@ class AnimatedRenderFlex extends RenderBox
   void paintChildren(PaintingContext context, Offset offset) {
     RenderBox? child = firstChild;
     while (child != null) {
-      final AnimatedFlexParentData childParentData =
+      final AnimatedFlexParentData cpd =
           child.parentData! as AnimatedFlexParentData;
-      context.paintChild(child, childParentData.offset + offset);
-      child = childParentData.nextSibling;
+      final Offset targetOffset = cpd.offset;
+      Offset paintOffset;
+
+      if (animation.isAnimating && !cpd.previousOffset.dx.isNaN) {
+        paintOffset = easeOffset(
+          cpd.previousOffset,
+          targetOffset,
+          0,
+          1,
+          animation.value,
+          cpd.previousVelocity,
+        );
+      } else {
+        paintOffset = targetOffset;
+      }
+
+      context.paintChild(child, offset + paintOffset);
+      child = cpd.nextSibling;
     }
   }
 
@@ -1126,6 +1197,7 @@ class AnimatedRenderFlex extends RenderBox
 
   @override
   void dispose() {
+    _animation.removeListener(markNeedsPaint);
     _clipRectLayer.layer = null;
     super.dispose();
   }
@@ -1244,7 +1316,7 @@ class AnimatedRenderFlex extends RenderBox
 ///    that may be sized smaller (leaving some remaining room unused).
 ///  * [Wrap], for a widget that allows its children to wrap over multiple _runs_.
 ///  * The [catalog of layout widgets](https://flutter.dev/widgets/layout/).
-class AnimatedFlex extends MultiChildRenderObjectWidget {
+class AnimatedFlex extends StatefulWidget {
   /// Creates a flex layout.
   ///
   /// The [direction] is required.
@@ -1268,7 +1340,15 @@ class AnimatedFlex extends MultiChildRenderObjectWidget {
     this.textBaseline, // NO DEFAULT: we don't know what the text's baseline should be
     this.clipBehavior = Clip.none,
     this.spacing = 0.0,
-    super.children,
+    required this.children,
+    this.movementDuration =
+        const Duration(milliseconds: 200), // Default duration
+    this.sensitivity = 5.0, // Default sensitivity
+    this.insertionDuration,
+    this.insertionBuilder,
+    this.removalDuration,
+    this.removalBuilder,
+    this.staggeredInitialInsertionAnimation,
   }) : assert(
             !identical(crossAxisAlignment, CrossAxisAlignment.baseline) ||
                 textBaseline != null,
@@ -1380,6 +1460,23 @@ class AnimatedFlex extends MultiChildRenderObjectWidget {
   /// {@macro flutter.rendering.RenderFlex.spacing}
   final double spacing;
 
+  /// The duration over which to animate changes in child positions.
+  final Duration movementDuration;
+
+  /// The minimum distance a child must move to trigger an animation.
+  final double sensitivity;
+
+  /// The children to display.
+  final List<Widget> children;
+
+  final Duration? insertionDuration;
+  final Widget Function(Widget child, Animation<double> controller)?
+      insertionBuilder;
+  final Duration? removalDuration;
+  final Widget Function(Widget child, Animation<double> controller)?
+      removalBuilder;
+  final Duration? staggeredInitialInsertionAnimation;
+
   bool get _needTextDirection {
     switch (direction) {
       case Axis.horizontal:
@@ -1412,17 +1509,273 @@ class AnimatedFlex extends MultiChildRenderObjectWidget {
   }
 
   @override
+  State<AnimatedFlex> createState() => _AnimatedFlexState();
+}
+
+class _AnimatedFlexState extends State<AnimatedFlex>
+    with TickerProviderStateMixin {
+  late final AnimationController _moveAnimator;
+  // Map from original child key to its animated item wrapper data
+  late HashMap<Key, _InsertingFlexItem> _childItemsData =
+      HashMap<Key, _InsertingFlexItem>();
+  final List<_RemovalItem> _removingChildren = [];
+  // Key for the Stack to get relative coordinates
+  final GlobalKey _stackKey = GlobalKey();
+
+  // initialized with defaults (the defaults couldn't have been initialized in the constructor because they're non-const)
+  late final Widget Function(Widget, Animation<double>) _insertionBuilder;
+  late final Duration _insertionDuration;
+  late final Widget Function(Widget, Animation<double>) _removalBuilder;
+  late final Duration _removalDuration;
+
+  @override
+  void initState() {
+    super.initState();
+
+    assert(() {
+      for (final child in widget.children) {
+        _requireKey(child);
+      }
+      return true;
+    }());
+
+    _moveAnimator = AnimationController(
+      vsync: this,
+      duration: widget.movementDuration,
+    );
+
+    _insertionDuration =
+        widget.insertionDuration ?? const Duration(milliseconds: 200);
+    _insertionBuilder = widget.insertionBuilder ??
+        (child, animation) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: animation.drive(CurveTween(curve: Curves.easeOut)),
+              child: child,
+            ));
+
+    _removalDuration =
+        widget.removalDuration ?? const Duration(milliseconds: 200);
+    _removalBuilder = widget.removalBuilder ??
+        (child, animation) => FadeTransition(
+            opacity: ReverseAnimation(animation),
+            child: ScaleTransition(
+              scale: ReverseAnimation(animation),
+              child: child,
+            ));
+
+    Duration cumulativeDelay = Duration.zero;
+    Duration staggering =
+        widget.staggeredInitialInsertionAnimation ?? Duration.zero;
+    for (final child in widget.children) {
+      final Key key = child.key!;
+      _childItemsData[key] = _createItem(child,
+          delay: cumulativeDelay,
+          animateInsert: widget.staggeredInitialInsertionAnimation != null);
+      cumulativeDelay += staggering;
+    }
+  }
+
+  void _requireKey(Widget child) {
+    if (child.key == null) {
+      throw FlutterError('All children of AnimatedFlex must have Keys.\n'
+          'This is required for proper animation tracking when children are added, removed, or reordered.');
+    }
+  }
+
+  _InsertingFlexItem _createItem(Widget child,
+      {Duration delay = Duration.zero, bool animateInsert = true}) {
+    _requireKey(child);
+
+    AnimationController insertionController;
+    Animation<double> insertionAnimation;
+    final totalDuration = delay + _insertionDuration;
+    insertionController =
+        AnimationController(vsync: this, duration: totalDuration);
+    // Apply delay if needed
+    insertionAnimation = CurvedAnimation(
+        parent: insertionController,
+        curve: Interval(
+            delay.inMilliseconds /
+                (delay.inMilliseconds + totalDuration.inMilliseconds),
+            1.0, // End at 1.0
+            curve: Curves.easeOut // Default curve for insertion
+            ));
+    insertionController.forward();
+
+    AnimationController removalController =
+        AnimationController(vsync: this, duration: _removalDuration);
+    Animation<double> removalAnimation = removalController;
+
+    double flex = 1;
+    FlexFit fit = FlexFit.loose;
+    bool shouldAnimateSize = true;
+    if (child is AnFlexible) {
+      flex = child.flex;
+      fit = child.fit;
+      shouldAnimateSize = child.shouldAnimateSize;
+    }
+    return _InsertingFlexItem(
+      key: GlobalKey(),
+      insertionController: insertionController,
+      insertionAnimation: insertionAnimation,
+      removalController: removalController,
+      removalAnimation: removalAnimation,
+      insertingBuilder: _insertionBuilder,
+      removalBuilder: _removalBuilder,
+      flex: flex,
+      fit: fit,
+      shouldAnimateSize: shouldAnimateSize,
+      child: child,
+    );
+  }
+
+  void checkChildChanges(List<Widget> oldChildren, List<Widget> newChildren) {
+    final previousChildItemsData = _childItemsData;
+    _childItemsData = HashMap<Key, _InsertingFlexItem>();
+
+    // notice insertions
+    for (final child in newChildren) {
+      _requireKey(child);
+      final Key key = child.key!;
+
+      _childItemsData[key] = previousChildItemsData[key] ??
+          _createItem(child, animateInsert: true);
+    }
+
+    // notice removals
+    for (final child in oldChildren) {
+      final Key key = child.key!;
+      if (!_childItemsData.containsKey(key)) {
+        final removingItem = previousChildItemsData[key]!;
+        RenderBox? robj = (removingItem.key as GlobalKey)
+            .currentContext
+            ?.findRenderObject() as RenderBox?;
+        Offset? o = robj?.localToGlobal(Offset.zero,
+            ancestor: _stackKey.currentContext?.findRenderObject());
+        Size? s = robj?.size;
+
+        if (o != null && s != null) {
+          removingItem.removalController.forward();
+          removingItem.removalController.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              setState(() {
+                _removingChildren.removeWhere((r) => r.key == removingItem.key);
+              });
+            }
+          });
+
+          setState(() {
+            _removingChildren.add(removingItem.intoRemovalItem(o & s));
+          });
+        } else {
+          // Couldn't get position, dispose immediately
+          removingItem.insertionController.dispose();
+          removingItem.removalController.dispose();
+        }
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedFlex oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.movementDuration != oldWidget.movementDuration) {
+      _moveAnimator.duration = widget.movementDuration;
+    }
+
+    // should probably check other parameters too... );
+
+    checkChildChanges(oldWidget.children, widget.children);
+  }
+
+  @override
+  void dispose() {
+    _moveAnimator.dispose();
+    for (final itemData in _childItemsData.values) {
+      itemData.insertionController.dispose();
+      itemData.removalController.dispose();
+    }
+    for (final removing in _removingChildren) {
+      removing.parent.insertionController.dispose();
+      removing.parent.removalController.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Use Stack to overlay removing children
+    return Stack(
+      key: _stackKey,
+      children: [
+        ..._removingChildren,
+        _AnimatedFlexRenderObjectWidget(
+          direction: widget.direction,
+          mainAxisAlignment: widget.mainAxisAlignment,
+          mainAxisSize: widget.mainAxisSize,
+          crossAxisAlignment: widget.crossAxisAlignment,
+          textDirection: widget.getEffectiveTextDirection(context),
+          verticalDirection: widget.verticalDirection,
+          textBaseline: widget.textBaseline,
+          clipBehavior: widget.clipBehavior,
+          spacing: widget.spacing,
+          animation: _moveAnimator, // Pass the move animator
+          sensitivity: widget.sensitivity,
+          // Pass the wrapped _AnimatedFlexItem widgets
+          children: widget.children
+              .map((child) => _childItemsData[child.key]!)
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+// Helper widget to bridge StatefulWidget and RenderObject
+class _AnimatedFlexRenderObjectWidget extends MultiChildRenderObjectWidget {
+  const _AnimatedFlexRenderObjectWidget({
+    // No key needed here typically, handled by AnimatedFlex widget key
+    required this.direction,
+    required this.mainAxisAlignment,
+    required this.mainAxisSize,
+    required this.crossAxisAlignment,
+    required this.textDirection,
+    required this.verticalDirection,
+    required this.textBaseline,
+    required this.clipBehavior,
+    required this.spacing,
+    required this.animation,
+    required this.sensitivity,
+    required super.children,
+  });
+
+  final Axis direction;
+  final MainAxisAlignment mainAxisAlignment;
+  final MainAxisSize mainAxisSize;
+  final CrossAxisAlignment crossAxisAlignment;
+  final TextDirection? textDirection;
+  final VerticalDirection verticalDirection;
+  final TextBaseline? textBaseline;
+  final Clip clipBehavior;
+  final double spacing;
+  final AnimationController animation;
+  final double sensitivity;
+
+  @override
   AnimatedRenderFlex createRenderObject(BuildContext context) {
     return AnimatedRenderFlex(
       direction: direction,
       mainAxisAlignment: mainAxisAlignment,
       mainAxisSize: mainAxisSize,
       crossAxisAlignment: crossAxisAlignment,
-      textDirection: getEffectiveTextDirection(context),
+      textDirection: textDirection, // Already resolved in parent state
       verticalDirection: verticalDirection,
       textBaseline: textBaseline,
       clipBehavior: clipBehavior,
       spacing: spacing,
+      animation: animation, // Pass controller from widget state
+      sensitivity: sensitivity,
     );
   }
 
@@ -1434,11 +1787,13 @@ class AnimatedFlex extends MultiChildRenderObjectWidget {
       ..mainAxisAlignment = mainAxisAlignment
       ..mainAxisSize = mainAxisSize
       ..crossAxisAlignment = crossAxisAlignment
-      ..textDirection = getEffectiveTextDirection(context)
+      ..textDirection = textDirection // Already resolved in parent state
       ..verticalDirection = verticalDirection
       ..textBaseline = textBaseline
       ..clipBehavior = clipBehavior
-      ..spacing = spacing;
+      ..spacing = spacing
+      ..animation = animation // Update animation controller if needed
+      ..sensitivity = sensitivity; // Update sensitivity if needed
   }
 
   @override
@@ -1461,5 +1816,276 @@ class AnimatedFlex extends MultiChildRenderObjectWidget {
     properties.add(EnumProperty<Clip>('clipBehavior', clipBehavior,
         defaultValue: Clip.none));
     properties.add(DoubleProperty('spacing', spacing, defaultValue: 0.0));
+  }
+}
+
+class _RemovalItem extends StatelessWidget {
+  final _InsertingFlexItem parent;
+  final Rect rect;
+
+  const _RemovalItem(this.parent, this.rect, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      child: parent.removalBuilder(parent.child, parent.removalAnimation),
+    );
+  }
+}
+
+// Wrapper widget for children passed to AnimatedRenderFlex
+class _InsertingFlexItem extends StatelessWidget {
+  /// The actual widget child.
+  final Widget child;
+
+  /// Key used to track this specific instance in the render tree.
+  // The GlobalKey is essential for finding the RenderBox during removal.
+  // super.key refers to the original child's key for map lookups.
+
+  /// Controller for the insertion animation.
+  final AnimationController insertionController;
+
+  /// Controller for the removal animation.
+  final AnimationController removalController;
+
+  /// The actual animation curve/value for insertion (might be delayed).
+  final Animation<double> insertionAnimation;
+
+  /// The actual animation curve/value for removal.
+  final Animation<double> removalAnimation;
+
+  /// Builder for insertion effect.
+  final Widget Function(Widget child, Animation<double> controller)
+      insertingBuilder;
+
+  /// Builder for removal effect.
+  final Widget Function(Widget child, Animation<double> controller)
+      removalBuilder;
+
+  final double flex;
+  final FlexFit fit;
+  final bool shouldAnimateSize;
+
+  const _InsertingFlexItem({
+    required this.child,
+    required GlobalKey key, // Use GlobalKey for render object lookup
+    required this.insertingBuilder,
+    required this.removalBuilder,
+    required this.insertionController,
+    required this.removalController,
+    required this.insertionAnimation,
+    required this.removalAnimation,
+    this.flex = 1,
+    this.fit = FlexFit.loose,
+    this.shouldAnimateSize = true,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return _InternalAnFlexible(
+      flex: flex,
+      fit: fit,
+      shouldAnimateSize: shouldAnimateSize,
+      child: insertingBuilder(child, insertionAnimation),
+    );
+  }
+
+  _RemovalItem intoRemovalItem(Rect rect) {
+    return _RemovalItem(
+      key: key,
+      this,
+      rect,
+    );
+  }
+}
+
+/// A widget that displays its children in a horizontal array with animations.
+///
+/// This is a convenience widget that sets the [AnimatedFlex.direction] to [Axis.horizontal].
+///
+/// See also:
+///
+///  * [AnimatedFlex], the underlying widget.
+///  * [AnimatedColumn], for a vertical arrangement.
+///  * [Row], the non-animated equivalent.
+class AnimatedRow extends AnimatedFlex {
+  /// Creates an animated horizontal array of children.
+  ///
+  /// The [mainAxisAlignment], [mainAxisSize], [crossAxisAlignment], and
+  /// [verticalDirection] arguments must not be null. If [crossAxisAlignment] is
+  /// [CrossAxisAlignment.baseline], then [textBaseline] must not be null.
+  ///
+  /// The [textDirection] argument defaults to the ambient [Directionality], if
+  /// any. If there is no ambient directionality, and a text direction is going
+  /// to be necessary to determine the layout order (which is always the case
+  /// unless the row has no children or only one child) or to disambiguate
+  /// `start` or `end` values for the [mainAxisAlignment], the [textDirection]
+  /// must not be null.
+  const AnimatedRow({
+    super.key,
+    super.mainAxisAlignment,
+    super.mainAxisSize,
+    super.crossAxisAlignment,
+    super.textDirection,
+    super.verticalDirection,
+    super.textBaseline,
+    required super.children,
+    super.clipBehavior,
+    super.spacing,
+    super.movementDuration,
+    super.sensitivity,
+    super.insertionDuration,
+    super.insertionBuilder,
+    super.removalDuration,
+    super.removalBuilder,
+    super.staggeredInitialInsertionAnimation,
+  }) : super(direction: Axis.horizontal);
+}
+
+/// A widget that displays its children in a vertical array with animations.
+///
+/// This is a convenience widget that sets the [AnimatedFlex.direction] to [Axis.vertical].
+///
+/// See also:
+///
+///  * [AnimatedFlex], the underlying widget.
+///  * [AnimatedRow], for a horizontal arrangement.
+///  * [Column], the non-animated equivalent.
+class AnimatedColumn extends AnimatedFlex {
+  /// Creates an animated vertical array of children.
+  ///
+  /// The [mainAxisAlignment], [mainAxisSize], [crossAxisAlignment], and
+  /// [verticalDirection] arguments must not be null. If [crossAxisAlignment] is
+  /// [CrossAxisAlignment.baseline], then [textBaseline] must not be null.
+  ///
+  /// The [textDirection] argument defaults to the ambient [Directionality], if
+  /// any. If there is no ambient directionality, and a text direction is going
+  /// to be necessary to determine the layout order (which is always the case
+  /// unless the column has no children or only one child) or to disambiguate
+  /// `start` or `end` values for the [crossAxisAlignment], the [textDirection]
+  /// must not be null.
+  const AnimatedColumn({
+    super.key,
+    super.mainAxisAlignment,
+    super.mainAxisSize,
+    super.crossAxisAlignment,
+    super.textDirection,
+    super.verticalDirection,
+    super.textBaseline,
+    required super.children,
+    super.clipBehavior,
+    super.spacing,
+    super.movementDuration,
+    super.sensitivity,
+    super.insertionDuration,
+    super.insertionBuilder,
+    super.removalDuration,
+    super.removalBuilder,
+    super.staggeredInitialInsertionAnimation,
+  }) : super(direction: Axis.vertical);
+}
+
+/// communicates flex preferences to the AnimatedFlexParentData.
+/// Users should use AnFlexible instead. We can't do it like [Flexible] does it because children that're passed in aren't direct children of the AniamtedFlex. Instead, we extract that info using a runtime type check and pass it into the _AnimatedFlexItem.
+class _InternalAnFlexible extends ParentDataWidget<AnimatedFlexParentData> {
+  const _InternalAnFlexible(
+      {super.key,
+      this.flex = 1,
+      // we default to loose because Flexible also does (I'm not completely sure why, but disagreeing would be too confusing).
+      this.fit = FlexFit.loose,
+      this.shouldAnimateSize = true,
+      required super.child});
+
+  final double flex;
+
+  /// if you're setting flex, you probably want this to be [FlexFit.tight], which controls the minimum size constraint as well as the maximum size constraint.
+  final FlexFit fit;
+
+  /// set this to false if the widget animates its own size changes. AnimatedFlex, for instance, does.
+  final bool shouldAnimateSize;
+
+  @override
+  void applyParentData(RenderObject renderObject) {
+    // unlike Flexible, we don't scream if you're not in an AnimatedFlex. The reason is, it shouldn't be for the widget to know for sure where it's going to be placed.
+    if (renderObject.parentData is AnimatedFlexParentData) {
+      final parentData = renderObject.parentData as AnimatedFlexParentData;
+      bool needsLayout = false;
+
+      if (parentData.flex != flex) {
+        parentData.flex = flex;
+        needsLayout = true;
+      }
+
+      if (parentData.fit != fit) {
+        parentData.fit = fit;
+        needsLayout = true;
+      }
+
+      if (parentData.shouldAnimateSize != shouldAnimateSize) {
+        parentData.shouldAnimateSize = shouldAnimateSize;
+        needsLayout = true;
+      }
+
+      if (needsLayout) {
+        renderObject.parent?.markNeedsLayout();
+      }
+    }
+  }
+
+  @override
+  Type get debugTypicalAncestorWidgetClass => AnimatedFlex;
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DoubleProperty('flex', flex));
+  }
+}
+
+/// A widget that controls how a child of an [AnimatedFlex] flexes.
+///
+/// This is similar to [Flexible] but designed specifically for use with [AnimatedFlex].
+/// It allows for controlling the flex factor, fit, and whether size changes should be animated.
+class AnFlexible extends StatelessWidget {
+  const AnFlexible({
+    super.key,
+    this.flex = 1,
+    this.fit = FlexFit.loose,
+    this.shouldAnimateSize = true,
+    required this.child,
+  });
+
+  final Widget child;
+
+  final double flex;
+
+  /// How a flexible child is inscribed into the available space.
+  ///
+  /// If [flex] is non-zero, the [fit] determines whether the child fills the
+  /// space the parent makes available during layout. If the fit is
+  /// [FlexFit.tight], the child is required to fill the available space. If the
+  /// fit is [FlexFit.loose], the child can be at most as large as the available
+  /// space (but is allowed to be smaller).
+  final FlexFit fit;
+
+  /// Whether the size changes of this widget should be animated.
+  ///
+  /// Set this to false if the widget animates its own size changes.
+  final bool shouldAnimateSize;
+
+  @override
+  Widget build(BuildContext context) => child;
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DoubleProperty('flex', flex));
+    properties.add(EnumProperty<FlexFit>('fit', fit));
+    properties.add(FlagProperty('shouldAnimateSize',
+        value: shouldAnimateSize, ifFalse: 'size animations disabled'));
   }
 }
