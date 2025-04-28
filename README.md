@@ -1,12 +1,14 @@
 A fully animated wrap widget, where layout changes (internal movement, reordering, etc) animate. Also handles insertion and deletion animations.
 
-## Usage
+We also provide a _partially_ animated `AnimatedFlex` widget (and an `AnimatedRow`, and `AnimatedColumn`). AnimatedFlex currently doesn't animate changes in the childrens' sizes. Doing that in the way you'd expect is going to be pretty tricky, but [we have thoughts](https://github.com/makoConstruct/animated_flex/issues/2) about another way it could be done that we think is arguably better.
 
-The main thing to know is that all child widgets must have keys. If all you want to animate is changes in the size of the AimatedWrap (then see roadmap), then we could make that work without needing keys, but if you want to animate insertions, removals, or reorderings — and you probably do — then of course we need to be able to identify the widgets with ids.
+https://github.com/user-attachments/assets/4a4723e9-f499-401a-9887-e681b8f6f0b7
+
+## `AnimatedWrap`: Usage
 
 See doc comments/source code, but if you're just curious about the basics: There's a `AnimatedWrap.material3({List<Widget> children ...})` factory which creates an AnimatedWrap with default settings that I think fit in well enough with material design 3, which defaults to using a 400ms `movementDuration`, and an `insertionBuilder`/`removalBuilder` that animate insertions and removals with a CircularRevealAnimation (an expanding circular clip).
 
-The constructor mostly mirrors [flutter's Wrap widget](https://api.flutter.dev/flutter/widgets/Wrap-class.html), but there are some other parameters with explaining
+The constructor mostly mirrors [flutter's Wrap widget](https://api.flutter.dev/flutter/widgets/Wrap-class.html), but there are some other parameters worth explaining
 
 ```dart
 AnimatedWrap.material3(
@@ -17,6 +19,7 @@ AnimatedWrap.material3(
     WrapAlignment runAlignment = WrapAlignment.start,
     double runSpacing = 0.0,
     WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
+    /// the direction the wrap flows in (doesn't actually affect text)
     TextDirection textDirection = TextDirection.ltr,
     VerticalDirection verticalDirection = VerticalDirection.down,
     Clip clipBehavior = Clip.none,
@@ -53,16 +56,14 @@ AnimatedWrap.material3(
 There's a nice example app at example/lib/main.dart
 
 ## roadmap
-- ~~add flex functionality~~ create an animated flex container
-- ~~given the above, we can make a very general "AnimatedFlex" container, and make AnimatedWrap a special case of AnimatedFlex.~~ this turned out to be unworkable and if workable, impractical.
-- provide AnimatedColumn and AnimatedRow as a special case of AnimatedFlex, thereby fully addressing flutter's general lack of layout change animation.
+- add `NimatedContainer` to provide a way of (mostly) animating size changes for `AnimatedFlex` containers.
 - add `double? rudeHeightLimit` to AnimatedWrap. If the height of a child is greater than this, it'll be given a line of its own.
 - add `double? minRunHeight` to AnimatedWrap, which ensures that runs will always be at least this tall.
-- add an animation mode to AnimatedWrap where items wrap from going off-screen on the right to coming back in on the left instead of moving normally (at this point, AnimatedWrap will no longer be a special case of AnimatedFlex)
+- add an animation mode to `AnimatedWrap` where items wrap from going off-screen on the right to coming back in on the left instead of moving normally.
 
 ### help wanted, would love to see
-- use a Simulation object + constructor (that takes a position and velocity) to do motion instead of only supporting the one parabolic easer I always use.
-    - offer other default motion Simulations: eg, a bouncy one, or one that's similar to the very precise analytical one we have now but instead of assuming a fixed duration and finding the minimum acceleration that'll get there in that time, assumes a maximum rate of acceleration and finds the minimum duration to get there. Or one that's like smooth ease but where movement on the y axis is faster (it'll look more like a swoop). Or one where movement on the y axis uses a steeper ease curve (but I'm definitely not coding that one)
+- use a `Simulation` object + constructor (that takes `prevPosition` `prevVelocity` and `targetPosition`) to do motion instead of only supporting that one parabolic easer I made.
+    - offer other default motion Simulations: eg, a bouncy one, or one that's similar to the very precise analytical one we have now but instead of assuming a fixed duration and finding the minimum acceleration that'll get there in that time, assumes a maximum rate of acceleration and finds the minimum duration to get there. Or one that's like smooth ease but where movement on the y axis is faster (it'll look more like a swoop). Or one where movement on the y axis uses a steeper ease curve.
     - now you can solve a minor bug where removal positioneds jump to their target position instantly (*you can see it when you delete a lot while movement animation is still ongoing*). To fix this, will need to be able to transfer the simulation to the removal Positioned, so this depends on the above (currently we're not using actual Simulation objects for motion. There's a note in the code with further advice for this. Ask me if you need more help).
-    - support transfering animated children from one animated container to another? (It would have to have a globalkey of course). This is going to have complicated rules to deal with z-sorting and clipping.
-- Consider allowing children without keys for those users who just want size change layout aniation. We might actually not need to change much to get that to work. If you are a user who needs that, and doesn't also use insert, remove or reorder animations, say something, as I'm currently not sure whether yall actually exist.
+    - support transfering animated children from one animated container to another? (It would have to have a globalkey of course). This is going to have complicated rules to deal with z-sorting and clipping. Maybe not possible without proper framework-level z-sorting?
+- Consider allowing children without keys for those users who really just want size change layout animation (and not reordering or deletion and so on). We might actually not need to change much to get that to work. If you are a user who needs that, and doesn't also use insert, remove or reorder animations, say something, as I'm currently just not sure whether yall actually exist.
