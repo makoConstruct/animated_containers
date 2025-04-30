@@ -7,6 +7,8 @@ library;
 
 import 'dart:math' as math;
 import 'dart:collection'; // For HashMap
+import 'package:animated_containers/animated_containers.dart';
+import 'package:circular_reveal_animation/circular_reveal_animation.dart';
 import 'package:flutter/scheduler.dart'; // Potentially for TickerProviderStateMixin if not already imported implicitly
 
 import 'package:animated_containers/retargetable_easers.dart';
@@ -1341,11 +1343,12 @@ class AnimatedFlex extends StatefulWidget {
     this.clipBehavior = Clip.none,
     this.spacing = 0.0,
     required this.children,
-    this.movementDuration = material3MoveAnimationDuration, // Default duration
+    this.movementDuration = defaultMoveAnimationDuration, // Default duration
     this.sensitivity = 5.0, // Default sensitivity
-    this.insertionDuration,
+    this.insertionDuration = defaultInsertionDuration,
+    this.insertionDelay = defaultInsertionDelayDuration,
     this.insertionBuilder,
-    this.removalDuration,
+    this.removalDuration = defaultRemovalDuration,
     this.removalBuilder,
     this.staggeredInitialInsertionAnimation,
   }) : assert(
@@ -1353,6 +1356,63 @@ class AnimatedFlex extends StatefulWidget {
                 textBaseline != null,
             'textBaseline is required if you specify the crossAxisAlignment with CrossAxisAlignment.baseline');
   // Cannot use == in the assert above instead of identical because of https://github.com/dart-lang/language/issues/1811.
+
+  static AnimatedFlex material3({
+    Key? key,
+    required Axis direction,
+    required List<Widget> children,
+    MainAxisAlignment mainAxisAlignment = MainAxisAlignment.start,
+    MainAxisSize mainAxisSize = MainAxisSize.max,
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+    TextDirection? textDirection,
+    TextBaseline? textBaseline,
+    Clip clipBehavior = Clip.none,
+    double spacing = 0.0,
+    Duration movementDuration = material3MoveAnimationDuration,
+    double sensitivity = 5.0,
+    Duration insertionDuration = material3InsertionDuration,
+    Duration insertionDelay = material3InsertionDelayDuration,
+    Widget Function(Widget child, Animation<double> controller)?
+        insertionBuilder,
+    Duration removalDuration = material3RemovalDuration,
+    Widget Function(Widget child, Animation<double> controller)? removalBuilder,
+    Duration? staggeredInitialInsertionAnimation,
+  }) {
+    return AnimatedFlex(
+      key: key,
+      direction: direction,
+      mainAxisAlignment: mainAxisAlignment,
+      mainAxisSize: mainAxisSize,
+      crossAxisAlignment: crossAxisAlignment,
+      textDirection: textDirection,
+      textBaseline: textBaseline,
+      clipBehavior: clipBehavior,
+      spacing: spacing,
+      movementDuration: movementDuration,
+      sensitivity: sensitivity,
+      insertionDuration: insertionDuration,
+      insertionDelay: insertionDelay,
+      insertionBuilder: insertionBuilder ??
+          (child, animation) {
+            return CircularRevealAnimation(
+                animation: delayAnimation(animation,
+                        by: insertionDuration - material3InsertionDelayDuration,
+                        total: insertionDuration)
+                    .drive(CurveTween(curve: Curves.easeOut)),
+                child: child);
+          },
+      removalDuration: removalDuration,
+      removalBuilder: removalBuilder ??
+          (child, animation) {
+            return CircularRevealAnimation(
+                animation: ReverseAnimation(animation)
+                    .drive(CurveTween(curve: Curves.easeInCubic)),
+                child: child);
+          },
+      staggeredInitialInsertionAnimation: staggeredInitialInsertionAnimation,
+      children: children,
+    );
+  }
 
   /// The direction to use as the main axis.
   ///
@@ -1462,9 +1522,6 @@ class AnimatedFlex extends StatefulWidget {
   /// The duration over which to animate changes in child positions.
   final Duration movementDuration;
 
-  static const Duration material3MoveAnimationDuration =
-      Duration(milliseconds: 270);
-
   /// The minimum distance a child must move to trigger an animation.
   final double sensitivity;
 
@@ -1474,6 +1531,7 @@ class AnimatedFlex extends StatefulWidget {
   final Duration? insertionDuration;
   final Widget Function(Widget child, Animation<double> controller)?
       insertionBuilder;
+  final Duration? insertionDelay;
   final Duration? removalDuration;
   final Widget Function(Widget child, Animation<double> controller)?
       removalBuilder;
@@ -1527,6 +1585,7 @@ class _AnimatedFlexState extends State<AnimatedFlex>
   // initialized with defaults (the defaults couldn't have been initialized in the constructor because they're non-const)
   late final Widget Function(Widget, Animation<double>) _insertionBuilder;
   late final Duration _insertionDuration;
+  late final Duration _insertionDelay;
   late final Widget Function(Widget, Animation<double>) _removalBuilder;
   late final Duration _removalDuration;
 
@@ -1546,18 +1605,24 @@ class _AnimatedFlexState extends State<AnimatedFlex>
       duration: widget.movementDuration,
     );
 
-    _insertionDuration =
-        widget.insertionDuration ?? const Duration(milliseconds: 200);
+    _insertionDuration = widget.insertionDuration ?? defaultInsertionDuration;
+    _insertionDelay = widget.insertionDelay ?? defaultInsertionDelayDuration;
     _insertionBuilder = widget.insertionBuilder ??
-        (child, animation) => FadeTransition(
-            opacity: animation,
-            child: ScaleTransition(
-              scale: animation.drive(CurveTween(curve: Curves.easeOut)),
-              child: child,
-            ));
+        (child, animation) {
+          final delayedAnimation = animation.drive(CurveTween(
+              curve: Interval(
+                  _insertionDelay.inMilliseconds /
+                      _insertionDuration.inMilliseconds,
+                  1)));
+          return FadeTransition(
+              opacity: delayedAnimation,
+              child: ScaleTransition(
+                scale: delayedAnimation,
+                child: child,
+              ));
+        };
 
-    _removalDuration =
-        widget.removalDuration ?? const Duration(milliseconds: 200);
+    _removalDuration = widget.removalDuration ?? defaultRemovalDuration;
     _removalBuilder = widget.removalBuilder ??
         (child, animation) => FadeTransition(
             opacity: ReverseAnimation(animation),

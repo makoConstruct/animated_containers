@@ -2,6 +2,7 @@ library animated_containers;
 
 import 'dart:collection';
 
+import 'package:animated_containers/animated_containers.dart';
 import 'package:circular_reveal_animation/circular_reveal_animation.dart';
 import 'package:flutter/material.dart';
 
@@ -991,10 +992,10 @@ class AnimatedWrap extends StatefulWidget {
     this.clipBehavior = Clip.none,
     this.children = const <Widget>[],
     this.sensitivity = 5,
-    this.movementDuration = const Duration(milliseconds: 1000),
-    this.removalDuration,
+    this.movementDuration = defaultMoveAnimationDuration,
+    this.removalDuration = defaultRemovalDuration,
     this.removalBuilder,
-    this.insertionDuration,
+    this.insertionDuration = defaultInsertionDuration,
     this.insertionBuilder,
     this.staggeredInitialInsertionAnimation,
   });
@@ -1014,10 +1015,10 @@ class AnimatedWrap extends StatefulWidget {
     Clip clipBehavior = Clip.none,
     List<Widget> children = const <Widget>[],
     double sensitivity = 5,
-    Duration movementDuration = const Duration(milliseconds: 360),
-    Duration removalDuration = const Duration(milliseconds: 280),
+    Duration movementDuration = material3MoveAnimationDuration,
+    Duration removalDuration = material3RemovalDuration,
     Widget Function(Widget child, Animation<double> controller)? removalBuilder,
-    Duration insertionDuration = const Duration(milliseconds: 500),
+    Duration insertionDuration = material3InsertionDuration,
     Widget Function(Widget child, Animation<double> controller)?
         insertionBuilder,
     Duration? staggeredInitialInsertionAnimation,
@@ -1040,9 +1041,8 @@ class AnimatedWrap extends StatefulWidget {
             (child, animation) {
               return CircularRevealAnimation(
                   animation: delayAnimation(animation,
-                          by: Duration(
-                              milliseconds:
-                                  insertionDuration.inMilliseconds - 160),
+                          by: insertionDuration -
+                              material3InsertionDelayDuration,
                           total: insertionDuration)
                       .drive(CurveTween(curve: Curves.easeOut)),
                   child: child);
@@ -1252,8 +1252,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
     }());
 
     // provide defaults
-    _insertionDuration =
-        widget.insertionDuration ?? const Duration(milliseconds: 200);
+    _insertionDuration = widget.insertionDuration ?? defaultInsertionDuration;
     _insertionBuilder = widget.insertionBuilder ??
         (child, animation) => FadeTransition(
             opacity: animation,
@@ -1269,8 +1268,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
               scale: animation.drive(CurveTween(curve: Curves.easeOut)),
               child: child,
             ));
-    _removalDuration =
-        widget.removalDuration ?? const Duration(milliseconds: 200);
+    _removalDuration = widget.removalDuration ?? defaultRemovalDuration;
 
     if (widget.staggeredInitialInsertionAnimation != null) {
       Duration cumulativeDelay = Duration.zero;

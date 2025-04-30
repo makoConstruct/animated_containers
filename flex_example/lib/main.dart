@@ -65,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
       fit: FlexFit.tight,
       child: RanimatedContainer(
         constraints: BoxConstraints(minWidth: width),
-        animationDuration: AnimatedFlex.material3MoveAnimationDuration,
+        animationDuration: material3MoveAnimationDuration,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: colors.$1,
@@ -194,7 +194,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     minHeight: double.infinity, maxWidth: 700),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(8.0),
-                  child: AnimatedFlex(
+                  child: AnimatedFlex.material3(
                     direction: Axis.horizontal,
                     spacing: 8,
                     children: _items.toList(),
