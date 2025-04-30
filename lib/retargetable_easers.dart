@@ -266,16 +266,18 @@ class DynamicEaseInOutSimulation extends Simulation {
         super();
 
   void target(double v, {required double time}) {
-    if (v != endValue) {
-      if (startValue.isNaN) {
-        startValue = endValue = v;
-        startVelocity = 0;
-      } else {
-        startValue = x(time);
-        startVelocity = dx(time);
-        endValue = v;
-      }
+    // if (v != endValue) {
+    if (startValue.isNaN) {
+      startValue = endValue = v;
+      startVelocity = 0;
+    } else {
+      startValue = x(time);
+      startVelocity = dx(time);
+      endValue = v;
     }
+    // } else {
+    //   startValue = v;
+    // }
   }
 
   @override
@@ -310,8 +312,6 @@ class DynamicEaseInOutSimulation extends Simulation {
 
   @override
   bool isDone(double time) => time >= duration;
-
-  // For backward compatibility
 }
 
 /// An animation controller that uses DynamicEaseInOut to allow smooth retargeting of animations.
@@ -380,6 +380,9 @@ abstract class OffsetSimulation {
   Offset x(double time);
   Offset dx(double time);
   bool isDone(double time);
+
+  /// `time` is the time since the last target call. After this call, internal time resets to 0.
+  void target(Offset target, {required double time});
 }
 
 /// Forms a 2d simulation by just combining two `Simulation`s in the x and y directions. Which is imperfect because instead of modelling an object that aims one thruster optimally, it's like it models an object with four thrusters pointing in cardinal directions, which is a weird object, but it looks fine, perhaps even better.
@@ -394,6 +397,19 @@ class DuoMovementSimulation extends OffsetSimulation {
   @override
   bool isDone(double time) =>
       simulationx.isDone(time) && simulationy.isDone(time);
+  @override
+  void target(Offset target, {required double time}) {
+    (simulationx as DynamicEaseInOutSimulation).target(target.dx, time: time);
+    (simulationy as DynamicEaseInOutSimulation).target(target.dy, time: time);
+  }
+}
+
+class SmoothOffsetEaser extends DuoMovementSimulation {
+  SmoothOffsetEaser(Offset start, {required double duration})
+      : super(
+          simulationx: DynamicEaseInOutSimulation(start.dx, duration: duration),
+          simulationy: DynamicEaseInOutSimulation(start.dy, duration: duration),
+        );
 }
 
 typedef MovementSimulationConstructor = OffsetSimulation Function(

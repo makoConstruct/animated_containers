@@ -37,7 +37,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final _random = Random();
-  final List<_WrapItem> _items = [];
+  final List<_Item> _items = [];
   int _nextId = 0;
   final FocusNode _focusNode = FocusNode();
   int _insertButtonPressCount = 0;
@@ -51,10 +51,10 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  _WrapItem _createRandomItem() {
+  _Item _createRandomItem() {
     final (Color, Color) colors = _getRandomColors(_random);
     final mid = _nextId++;
-    return _WrapItem(
+    return _Item(
       id: mid,
       key: ValueKey(mid),
       width: lengthDistribution[_random.nextInt(lengthDistribution.length)],
@@ -214,7 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// todo: delete this I guess :(
+// todo: delete this I guess :( it doesn't look as nice as the default button
 class OurButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String text;
@@ -245,14 +245,14 @@ class OurButton extends StatelessWidget {
   }
 }
 
-class _WrapItem extends StatelessWidget {
+class _Item extends StatelessWidget {
   final int id;
   final double width;
   final Color color;
   final Color backgroundColor;
   final VoidCallback onTap;
 
-  const _WrapItem({
+  const _Item({
     super.key,
     required this.id,
     required this.width,

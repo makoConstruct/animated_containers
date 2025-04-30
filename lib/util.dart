@@ -88,3 +88,6 @@ extension type const AxisSize._(Size _size) {
       ),
   };
 }
+
+Offset toOffset(Size size) => Offset(size.width, size.height);
+Size toSize(Offset offset) => Size(offset.dx, offset.dy);

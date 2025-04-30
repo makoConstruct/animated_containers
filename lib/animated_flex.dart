@@ -1341,8 +1341,7 @@ class AnimatedFlex extends StatefulWidget {
     this.clipBehavior = Clip.none,
     this.spacing = 0.0,
     required this.children,
-    this.movementDuration =
-        const Duration(milliseconds: 200), // Default duration
+    this.movementDuration = material3MoveAnimationDuration, // Default duration
     this.sensitivity = 5.0, // Default sensitivity
     this.insertionDuration,
     this.insertionBuilder,
@@ -1462,6 +1461,9 @@ class AnimatedFlex extends StatefulWidget {
 
   /// The duration over which to animate changes in child positions.
   final Duration movementDuration;
+
+  static const Duration material3MoveAnimationDuration =
+      Duration(milliseconds: 270);
 
   /// The minimum distance a child must move to trigger an animation.
   final double sensitivity;

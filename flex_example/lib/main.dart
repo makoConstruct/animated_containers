@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:animated_containers/animated_containers.dart';
 import 'package:animated_containers/animated_flex.dart';
+import 'package:animated_containers/ranimated_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_touch_ripple/components/touch_ripple_context.dart';
@@ -47,7 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     // Add initial items
-    for (int i = 0; i < 14; i++) {
+    for (int i = 0; i < 7; i++) {
       _items.add(_createRandomItem());
     }
   }
@@ -62,27 +63,26 @@ class _MyHomePageState extends State<MyHomePage> {
       key: ValueKey(mid),
       flex: isExpandy ? 1 : 0,
       fit: FlexFit.tight,
-      child: Container(
+      child: RanimatedContainer(
         constraints: BoxConstraints(minWidth: width),
-        child: Material(
-          color: colors.$1,
+        animationDuration: AnimatedFlex.material3MoveAnimationDuration,
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          clipBehavior: Clip.hardEdge,
-          // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
-          child: ourTouchRipple(
-            onTap: () => _removeItem(mid),
-            color: const Color.fromARGB(255, 255, 255, 255),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12.0,
-                vertical: 8.0,
-              ),
-              child: Text(
-                '$mid',
-                style: TextStyle(
-                  color: colors.$2,
-                  fontWeight: FontWeight.bold,
-                ),
+          color: colors.$1,
+        ),
+        child: ourTouchRipple(
+          onTap: () => _removeItem(mid),
+          color: const Color.fromARGB(255, 255, 255, 255),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 8.0,
+            ),
+            child: Text(
+              '$mid',
+              style: TextStyle(
+                color: colors.$2,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),

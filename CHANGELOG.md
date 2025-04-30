@@ -1,6 +1,24 @@
 ## 0.9.1
 
 
+### AnimatedFlex completed with RanimatedContainer
+
+I eventually accepted that having animated flex without animating size changes wasn't worth much. This was tough, but I thought up a way I'm not too unhappy with.
+
+Layout animations inherently work in a different way from basic flutter animations, they can't run layout again and again, for obvious reasons, they have to let layout go through for real and then visually animate that change.
+
+RanimatedContainer also does that, but for size changes of a Container. So on the layout level, its actual size changes immediately, but the background of the container will animate.
+
+I initially went about this by trying to alter a lot of the RenderObjects that Container uses to make them animate, eventually it dawned on me that there wouldn't be much of a difference between that and just rendering a container behind the contents and animating it the traditional way, with a size cue from a simple widget `SizeChangeReporter(onSizeChange: Function (size), child: Widget)`.
+
+And it seems to work well enough. I'm sure there'd be seams between the children, though.
+
+It's also going to need the same alignment sensitivity that AnimatedWrap has. Currently it's top left anchored.
+
+### AnimatedFlex Added
+
+Making `AnFlexible` work was tricky! But I found a way!
+
 ### failed project: Attempting to use Animation<Offset>s with Simulations to drive layout animation.
 
 I only realized right at the last moment that you can't animate layout on the widget level because the animation's response to the layout changes have to come through instantly, so you don't have time to generate a Transform.translate and wait for it to render, by that time, it'll render a glitch frame.
