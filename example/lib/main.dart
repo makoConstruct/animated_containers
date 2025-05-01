@@ -51,6 +51,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  // note, irl, you should probably use [FIC IList](https://pub.dev/packages/fast_immutable_collections#fast-immutable-collections)s instead of modifying a List like this. Doing it this way, we have to clone the list every time we build, which makes rebuilding a bit less efficient. But for a code example I'll just use the simple datastructure that everyone already has.
   _Item _createRandomItem() {
     final (Color, Color) colors = _getRandomColors(_random);
     final mid = _nextId++;
@@ -129,6 +130,21 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _resizeOne() {
+    setState(() {
+      final index = _random.nextInt(_items.length);
+      final prev = _items[index];
+      _items[index] = _Item(
+        id: prev.id,
+        key: prev.key,
+        width: lengthDistribution[_random.nextInt(lengthDistribution.length)],
+        backgroundColor: prev.backgroundColor,
+        color: prev.color,
+        onTap: prev.onTap,
+      );
+    });
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
@@ -202,6 +218,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       onPressed: () => _swapSome(3),
                       key: const ValueKey('swap three'),
                       child: const Text('swap three'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => _resizeOne(),
+                      key: const ValueKey('resize one'),
+                      child: const Text('resize one'),
                     ),
                   ],
                 ),

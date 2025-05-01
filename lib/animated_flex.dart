@@ -1680,7 +1680,7 @@ class _AnimatedFlexState extends State<AnimatedFlex>
     if (child is AnFlexible) {
       flex = child.flex;
       fit = child.fit;
-      shouldAnimateSize = child.shouldAnimateSize;
+      // shouldAnimateSize = child.shouldAnimateSize;
     }
     return _InsertingFlexItem(
       key: GlobalKey(),
@@ -1692,7 +1692,7 @@ class _AnimatedFlexState extends State<AnimatedFlex>
       removalBuilder: _removalBuilder,
       flex: flex,
       fit: fit,
-      shouldAnimateSize: shouldAnimateSize,
+      // shouldAnimateSize: shouldAnimateSize,
       child: child,
     );
   }
@@ -1739,6 +1739,38 @@ class _AnimatedFlexState extends State<AnimatedFlex>
           // Couldn't get position, dispose immediately
           removingItem.insertionController.dispose();
           removingItem.removalController.dispose();
+        }
+      }
+    }
+
+    // notice changes in the children and propagate those to the items
+    for (final child in newChildren) {
+      final key = child.key!;
+      if (_childItemsData.containsKey(key)) {
+        final prev = _childItemsData[key]!;
+        if (prev.child != child) {
+          double flex = 0;
+          FlexFit fit = FlexFit.tight;
+          bool shouldAnimateSize = false;
+          if (prev.child is AnFlexible) {
+            final prevFlex = prev.child as AnFlexible;
+            flex = prevFlex.flex;
+            fit = prevFlex.fit;
+            // shouldAnimateSize = prevFlex.shouldAnimateSize;
+          }
+          _childItemsData[key] = _InsertingFlexItem(
+            key: prev.key as GlobalKey,
+            insertionController: prev.insertionController,
+            removalController: prev.removalController,
+            insertionAnimation: prev.insertionAnimation,
+            removalAnimation: prev.removalAnimation,
+            insertingBuilder: _insertionBuilder,
+            removalBuilder: _removalBuilder,
+            flex: flex,
+            fit: fit,
+            // shouldAnimateSize: shouldAnimateSize,
+            child: child,
+          );
         }
       }
     }
@@ -2117,12 +2149,13 @@ class _InternalAnFlexible extends ParentDataWidget<AnimatedFlexParentData> {
 ///
 /// This is similar to [Flexible] but designed specifically for use with [AnimatedFlex].
 /// It allows for controlling the flex factor, fit, and whether size changes should be animated.
+/// Note, it doesn't work like Flexible in that it has to be around the given widget as soon as it's passed in, not just after build. This is because AnimatedFlex wraps its child widgets in an insertion animation, so the AnimatedFlex wont be its immediate parent.
 class AnFlexible extends StatelessWidget {
   const AnFlexible({
     super.key,
     this.flex = 1,
     this.fit = FlexFit.loose,
-    this.shouldAnimateSize = true,
+    // this.shouldAnimateSize = false,
     required this.child,
   });
 
@@ -2139,10 +2172,11 @@ class AnFlexible extends StatelessWidget {
   /// space (but is allowed to be smaller).
   final FlexFit fit;
 
-  /// Whether the size changes of this widget should be animated.
-  ///
-  /// Set this to false if the widget animates its own size changes.
-  final bool shouldAnimateSize;
+  // currently not supported, you gotta animate your own size changes.
+  // /// Whether the size changes of this widget should be animated.
+  // ///
+  // /// Set this to false if the widget animates its own size changes.
+  // final bool shouldAnimateSize;
 
   @override
   Widget build(BuildContext context) => child;
@@ -2152,7 +2186,7 @@ class AnFlexible extends StatelessWidget {
     super.debugFillProperties(properties);
     properties.add(DoubleProperty('flex', flex));
     properties.add(EnumProperty<FlexFit>('fit', fit));
-    properties.add(FlagProperty('shouldAnimateSize',
-        value: shouldAnimateSize, ifFalse: 'size animations disabled'));
+    // properties.add(FlagProperty('shouldAnimateSize',
+    //     value: shouldAnimateSize, ifFalse: 'size animations disabled'));
   }
 }

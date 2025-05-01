@@ -156,6 +156,26 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _toggleFlex() {
+    setState(() {
+      final index = _random.nextInt(_items.length);
+      final prev = _items[index];
+      Widget next;
+      if (prev is AnFlexible) {
+        double nextFlex = prev.flex == 0 ? 1 : 0;
+        next = AnFlexible(
+          key: prev.key,
+          flex: nextFlex,
+          fit: prev.fit,
+          child: prev.child,
+        );
+      } else {
+        next = AnFlexible(flex: 1, fit: FlexFit.tight, child: prev);
+      }
+      _items[index] = next;
+    });
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
@@ -180,6 +200,8 @@ class _MyHomePageState extends State<MyHomePage> {
               _insertThreeItems();
             } else if (event.logicalKey == LogicalKeyboardKey.space) {
               _swapSome(3);
+            } else if (event.logicalKey == LogicalKeyboardKey.keyT) {
+              _toggleFlex();
             }
           }
         },
@@ -230,6 +252,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       onPressed: () => _swapSome(3),
                       key: const ValueKey('swap three'),
                       child: const Text('swap three'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _toggleFlex,
+                      key: const ValueKey('toggle flex'),
+                      child: const Text('toggle flex'),
                     ),
                   ],
                 ),

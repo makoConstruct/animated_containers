@@ -1217,7 +1217,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
         removalController: removalController,
         removalAnimation: removalController,
         removalBuilder: _removalBuilder,
-        insertingBuilder: _insertionBuilder,
+        insertionBuilder: _insertionBuilder,
         child: child,
       );
     } else {
@@ -1232,7 +1232,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
         insertionAnimation: insertionController,
         removalController: removalController,
         removalAnimation: removalController,
-        insertingBuilder: _insertionBuilder,
+        insertionBuilder: _insertionBuilder,
         removalBuilder: _removalBuilder,
         child: child,
       );
@@ -1339,12 +1339,28 @@ class AnimatedWrapState extends State<AnimatedWrap>
 
     if (oldWidget.children != widget.children) {
       checkChildChanges(oldWidget.children, widget.children);
-      setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final children = widget.children.map((e) {
+      final _AnimatedWrapItem item = _childItems[e.key]!;
+      if (e != item.child) {
+        return _AnimatedWrapItem(
+          key: item.key,
+          insertionController: item.insertionController,
+          insertionAnimation: item.insertionAnimation,
+          removalController: item.removalController,
+          removalAnimation: item.removalAnimation,
+          insertionBuilder: item.insertionBuilder,
+          removalBuilder: item.removalBuilder,
+          child: e,
+        );
+      } else {
+        return item;
+      }
+    }).toList();
     return Stack(key: _stackKey, children: [
       ..._removingChildren.map((_Removal e) {
         return Positioned(
@@ -1367,7 +1383,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
         clipBehavior: widget.clipBehavior,
         animation: _moveAnimator,
         sensitivity: widget.sensitivity,
-        children: widget.children.map((e) => _childItems[e.key]!).toList(),
+        children: children,
       ),
     ]);
   }
@@ -1393,7 +1409,7 @@ class _AnimatedWrapItem extends StatelessWidget {
 
   /// The builder that wraps this widget when it's being inserted.
   final Widget Function(Widget child, Animation<double> controller)
-      insertingBuilder;
+      insertionBuilder;
 
   /// The builder that wraps this widget when it's being removed.
   final Widget Function(Widget child, Animation<double> controller)
@@ -1402,7 +1418,7 @@ class _AnimatedWrapItem extends StatelessWidget {
   const _AnimatedWrapItem({
     required this.child,
     super.key,
-    required this.insertingBuilder,
+    required this.insertionBuilder,
     required this.removalBuilder,
     this.insertionController,
     this.removalController,
@@ -1414,7 +1430,7 @@ class _AnimatedWrapItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // this mess is just, it uses the builder/controller if it's available, that's it, that's all.
     return removalBuilder(
-        insertingBuilder(child, insertionAnimation), removalAnimation);
+        insertionBuilder(child, insertionAnimation), removalAnimation);
   }
 }
 
