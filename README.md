@@ -1,6 +1,8 @@
+[![pub package](https://img.shields.io/pub/v/animated_containers.svg)](https://pub.dartlang.org/packages/animated_containers)
+
 A fully animated wrap widget, where layout changes (internal movement, reordering, etc) animate. Also handles insertion and deletion animations.
 
-We also provide a _partially_ animated `AnimatedFlex` widget (and an `AnimatedRow`, and `AnimatedColumn`). AnimatedFlex currently doesn't animate changes in the childrens' sizes. Doing that in the way you'd expect is going to be pretty tricky, but [we have thoughts](https://github.com/makoConstruct/animated_flex/issues/2) about another way it could be done that we think is arguably better.
+We also provide `AnimatedFlex` (and an `AnimatedRow`, and `AnimatedColumn`). AnimatedFlex currently doesn't animate changes in the childrens' sizes. Doing that in the way you'd expect it to work seems like it's going to be pretty tricky, but we offer another way of doing it, using ranimated widgets (currently just `RanimatedContainer`) which we think is arguably better than the idiomatic way.
 
 https://github.com/user-attachments/assets/4a4723e9-f499-401a-9887-e681b8f6f0b7
 

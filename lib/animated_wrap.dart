@@ -774,42 +774,44 @@ class AnimatedWrapRender extends RenderBox
     _RunMetrics? currentRun;
     AxisSize childrenAxisSize = AxisSize.empty;
 
-    void completeRun(_RunMetrics run) {
-      childrenAxisSize += run.axisSize.flipped;
+    void completeRun() {
+      childrenAxisSize += currentRun!.axisSize.flipped;
+    }
+
+    void newRun(RenderBox child, AxisSize childSize) {
+      currentRun = _RunMetrics();
+      currentRun!.axisSize = childSize;
+      currentRun!.leadingChild = child;
+      currentRun!.childCount = 1;
+      runMetrics.add(currentRun!);
     }
 
     for (RenderBox? child = firstChild;
         child != null;
         child = childAfter(child)) {
-      // create a new run if needed
-      if (currentRun == null) {
-        currentRun = _RunMetrics();
-        runMetrics.add(currentRun);
-      }
       final AxisSize childSize = AxisSize.fromSize(
           size: layoutChild(child, childConstraints), direction: direction);
-      // if we've exceeded the main axis limit, complete the current run and start a new one
-      if (currentRun.axisSize.mainAxisExtent +
+
+      if (currentRun == null) {
+        newRun(child, childSize);
+      } else if (currentRun!.axisSize.mainAxisExtent +
               childSize.mainAxisExtent +
               spacing >
           mainAxisLimit + precisionErrorTolerance) {
-        completeRun(currentRun);
-        currentRun = _RunMetrics();
-        currentRun.axisSize = childSize;
-        currentRun.leadingChild = child;
-        currentRun.childCount += 1;
-        runMetrics.add(currentRun);
+        // if we've exceeded the main axis limit, complete the current run and start a new one
+        completeRun();
+        newRun(child, childSize);
+      } else {
+        currentRun!.axisSize +=
+            childSize + AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
+        currentRun!.childCount += 1;
+        // yeah it traverses them backwards in _positionChildren if flipMainAxis.
+        currentRun!.leadingChild =
+            flipMainAxis ? child : currentRun!.leadingChild ?? child;
       }
-
-      currentRun.axisSize +=
-          childSize + AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
-      currentRun.childCount += 1;
-      // yeah it traverses them backwards in _positionChildren if flipMainAxis.
-      currentRun.leadingChild =
-          flipMainAxis ? child : currentRun.leadingChild ?? child;
     }
     if (currentRun != null) {
-      completeRun(currentRun);
+      completeRun();
     }
 
     // distribute spacing between runs
@@ -853,7 +855,7 @@ class AnimatedWrapRender extends RenderBox
         flipCrossAxis ? runMetrics.reversed : runMetrics;
     for (final _RunMetrics run in runs) {
       final double runCrossAxisExtent = run.axisSize.crossAxisExtent;
-      final int childCount = run.childCount;
+      int childCount = run.childCount;
 
       final double mainAxisFreeSpace = max(
           0.0, containerAxisSize.mainAxisExtent - run.axisSize.mainAxisExtent);
@@ -865,8 +867,8 @@ class AnimatedWrapRender extends RenderBox
       double childMainAxisOffset = childLeadingSpace;
 
       for (RenderBox? child = run.leadingChild;
-          child != null;
-          child = nextChild(child)) {
+          child != null && childCount > 0;
+          child = nextChild(child), childCount -= 1) {
         final AxisSize(
           mainAxisExtent: double childMainAxisExtent,
           crossAxisExtent: double childCrossAxisExtent
@@ -894,7 +896,6 @@ class AnimatedWrapRender extends RenderBox
     RenderBox? child = firstChild;
     while (child != null) {
       final parentData = child.parentData! as AnimatedWrapParentData;
-      // todo: When we switch to Simulation objects, this is also a good idea
       final animatedOffset = !parentData.previousOffset.dx.isNaN
           ? easeOffset(
               parentData.previousOffset,
