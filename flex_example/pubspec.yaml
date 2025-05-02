@@ -12,7 +12,6 @@ dependencies:
   animated_containers:
     path: ../
   cupertino_icons: ^1.0.2
-  circular_reveal_animation: ^2.0.1
   flutter_touch_ripple: ^2.6.1
 
 dev_dependencies:

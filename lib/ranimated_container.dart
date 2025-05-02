@@ -13,6 +13,9 @@ import 'package:flutter/widgets.dart';
 /// - Doesn't have to call layout every frame of the animation
 /// - Can animate layout changes (conventional animations can't, or can only animate it in limited ways while making it very awkward)
 /// - Allows the user to immediately interact with the application as if the change had completed, rather than having to wait for the animation to complete. This also avoids certain kinds of bugs.
+/// shortcomings and bugs
+/// - Currently doesn't interpolate any properties other than size. Implementing this isn't as hard as you'd think though, Decorations have lerp methods. I just didn't need that yet.
+/// - Doesn't render foreground in front of the child (except when animated size is nan)
 class RanimatedContainer extends StatefulWidget {
   /// Creates a widget that combines common painting, positioning, and sizing widgets.
   ///
@@ -151,6 +154,9 @@ class _RanimatedContainerState extends State<RanimatedContainer>
     with TickerProviderStateMixin {
   late AnimationController _animation;
   late SmoothOffsetEaser _spanEaser;
+  Offset get _spanEaserEndValue => Offset(
+      (_spanEaser.simulationx as DynamicEaseInOutSimulation).endValue,
+      (_spanEaser.simulationy as DynamicEaseInOutSimulation).endValue);
 
   @override
   void initState() {
@@ -172,61 +178,76 @@ class _RanimatedContainerState extends State<RanimatedContainer>
   @override
   Widget build(BuildContext context) {
     // floats a positioned container with all of the right decorations and so on behind, whose sizing follows along with the size of the child container
-    return Stack(
-        fit: StackFit.passthrough,
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-              left: 0,
-              top: 0,
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  Offset size = _spanEaser.x(_animation.value);
-                  if (size.dx.isNaN || size.dy.isNaN) {
-                    // then this is the first render, so just lay it out normally instead of using the animated value
-                    return SizedBox.shrink(child: child);
-                  }
-                  return SizedBox(
-                    width: 0,
-                    height: 0,
-                    child: OverflowBox(
-                      alignment: Alignment.topLeft,
-                      maxWidth: size.dx,
-                      maxHeight: size.dy,
-                      child: child,
-                    ),
-                  );
-                },
-                // todo: interpolate from previous decoration
-                child: Container(
-                  color: widget.color,
-                  padding: widget.padding,
-                  decoration: widget.decoration,
-                  foregroundDecoration: widget.foregroundDecoration,
-                  margin: widget.margin,
-                  transform: widget.transform,
-                  transformAlignment: widget.transformAlignment,
-                ),
-              )),
-          SizeChangeReporter(
-              onSizeChange: (size) {
-                setState(() {
-                  _spanEaser.target(Offset(size.width, size.height),
-                      time: _animation.value);
-                  _animation.forward(from: 0);
-                });
-              },
-              child: Container(
-                  constraints: widget.constraints,
+    return SizeChangeReporter(
+        onSizeChange: (size) {
+          if (size != _spanEaserEndValue) {
+            setState(() {
+              _spanEaser.target(Offset(size.width, size.height),
+                  time: _animation.value);
+              _animation.forward(from: 0);
+            });
+          }
+        },
+        child: AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              Offset size = _spanEaser.x(_animation.value);
+              if (size.dx.isNaN || size.dy.isNaN) {
+                // then this is the first render, so there'll be no animation, and we wouldn't know what size to animate to anyway, so just render as a normal container
+                return Container(
                   alignment: widget.alignment,
                   padding: widget.padding,
-                  clipBehavior: widget.clipBehavior,
+                  color: widget.color,
+                  decoration: widget.decoration,
+                  foregroundDecoration: widget.foregroundDecoration,
+                  constraints: widget.constraints,
+                  margin: widget.margin,
                   transform: widget.transform,
                   transformAlignment: widget.transformAlignment,
-                  margin: widget.margin,
-                  child: widget.child)),
-        ]);
+                  clipBehavior: widget.clipBehavior,
+                  child: widget.child,
+                );
+              } else {
+                return Stack(
+                    fit: StackFit.passthrough,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                          left: 0,
+                          top: 0,
+                          child: SizedBox(
+                            width: 0,
+                            height: 0,
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              maxWidth: size.dx,
+                              maxHeight: size.dy,
+                              child: Container(
+                                color: widget.color,
+                                padding: widget.padding,
+                                decoration: widget.decoration,
+                                foregroundDecoration:
+                                    widget.foregroundDecoration,
+                                margin: widget.margin,
+                                transform: widget.transform,
+                                transformAlignment: widget.transformAlignment,
+                              ),
+                            ),
+                          )
+                          // todo: interpolate from previous decoration
+                          ),
+                      Container(
+                          constraints: widget.constraints,
+                          alignment: widget.alignment,
+                          padding: widget.padding,
+                          clipBehavior: widget.clipBehavior,
+                          transform: widget.transform,
+                          transformAlignment: widget.transformAlignment,
+                          margin: widget.margin,
+                          child: widget.child),
+                    ]);
+              }
+            }));
   }
 
   @override

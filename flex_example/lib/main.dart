@@ -39,8 +39,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final _random = Random();
-  final List<Widget> _items = [];
   int _nextId = 0;
+  final List<Widget> _items = [];
   final FocusNode _focusNode = FocusNode();
   int _insertButtonPressCount = 0;
 
@@ -53,12 +53,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Widget _createRandomItem() {
-    final (Color, Color) colors = _getRandomColors(_random);
+  Widget _createItem((Color, Color) colors, bool isExpandy, double width) {
     final mid = _nextId++;
-    bool isExpandy = _random.nextDouble() > 0.3;
-    final width =
-        lengthDistribution[_random.nextInt(lengthDistribution.length)];
     return AnFlexible(
       key: ValueKey(mid),
       flex: isExpandy ? 1 : 0,
@@ -89,6 +85,14 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
+  }
+
+  Widget _createRandomItem() {
+    final (Color, Color) colors = _getRandomColors(_random);
+    bool isExpandy = _random.nextDouble() > 0.3;
+    final width =
+        lengthDistribution[_random.nextInt(lengthDistribution.length)];
+    return _createItem(colors, isExpandy, width);
   }
 
   void _removeItem(int id) {
@@ -161,17 +165,15 @@ class _MyHomePageState extends State<MyHomePage> {
       final index = _random.nextInt(_items.length);
       final prev = _items[index];
       Widget next;
-      if (prev is AnFlexible) {
-        double nextFlex = prev.flex == 0 ? 1 : 0;
-        next = AnFlexible(
-          key: prev.key,
-          flex: nextFlex,
-          fit: prev.fit,
-          child: prev.child,
-        );
-      } else {
-        next = AnFlexible(flex: 1, fit: FlexFit.tight, child: prev);
-      }
+      assert(prev is AnFlexible);
+      final prevFlex = prev as AnFlexible;
+      double nextFlex = prevFlex.flex == 0 ? 1 : 0;
+      next = AnFlexible(
+        key: prevFlex.key,
+        flex: nextFlex,
+        fit: prevFlex.fit,
+        child: prevFlex.child,
+      );
       _items[index] = next;
     });
   }

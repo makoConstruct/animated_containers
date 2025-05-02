@@ -1396,8 +1396,7 @@ class AnimatedFlex extends StatefulWidget {
           (child, animation) {
             return CircularRevealAnimation(
                 animation: delayAnimation(animation,
-                        by: insertionDuration - material3InsertionDelayDuration,
-                        total: insertionDuration)
+                        by: insertionDelay, total: insertionDuration)
                     .drive(CurveTween(curve: Curves.easeOut)),
                 child: child);
           },
@@ -1674,9 +1673,9 @@ class _AnimatedFlexState extends State<AnimatedFlex>
         AnimationController(vsync: this, duration: _removalDuration);
     Animation<double> removalAnimation = removalController;
 
-    double flex = 1;
-    FlexFit fit = FlexFit.loose;
-    bool shouldAnimateSize = true;
+    double flex = 0;
+    FlexFit fit = FlexFit.tight;
+    // bool shouldAnimateSize = true;
     if (child is AnFlexible) {
       flex = child.flex;
       fit = child.fit;
@@ -1706,8 +1705,40 @@ class _AnimatedFlexState extends State<AnimatedFlex>
       _requireKey(child);
       final Key key = child.key!;
 
-      _childItemsData[key] = previousChildItemsData[key] ??
-          _createItem(child, animateInsert: true);
+      final prev = previousChildItemsData[key];
+      if (prev != null) {
+        _childItemsData[key] = prev;
+        //update it
+        if (prev.child != child) {
+          double flex = 0;
+          FlexFit fit = FlexFit.tight;
+          // bool shouldAnimateSize = false;
+          if (child is AnFlexible) {
+            flex = child.flex;
+            fit = child.fit;
+            // shouldAnimateSize = prevFlex.shouldAnimateSize;
+          }
+          setState(() {
+            _childItemsData[key] = _InsertingFlexItem(
+              key: prev.key as GlobalKey,
+              insertionController: prev.insertionController,
+              removalController: prev.removalController,
+              insertionAnimation: prev.insertionAnimation,
+              removalAnimation: prev.removalAnimation,
+              insertingBuilder: _insertionBuilder,
+              removalBuilder: _removalBuilder,
+              flex: flex,
+              fit: fit,
+              // shouldAnimateSize: shouldAnimateSize,
+              child: child,
+            );
+          });
+        }
+      } else {
+        setState(() {
+          _childItemsData[key] = _createItem(child, animateInsert: true);
+        });
+      }
     }
 
     // notice removals
@@ -1739,38 +1770,6 @@ class _AnimatedFlexState extends State<AnimatedFlex>
           // Couldn't get position, dispose immediately
           removingItem.insertionController.dispose();
           removingItem.removalController.dispose();
-        }
-      }
-    }
-
-    // notice changes in the children and propagate those to the items
-    for (final child in newChildren) {
-      final key = child.key!;
-      if (_childItemsData.containsKey(key)) {
-        final prev = _childItemsData[key]!;
-        if (prev.child != child) {
-          double flex = 0;
-          FlexFit fit = FlexFit.tight;
-          bool shouldAnimateSize = false;
-          if (prev.child is AnFlexible) {
-            final prevFlex = prev.child as AnFlexible;
-            flex = prevFlex.flex;
-            fit = prevFlex.fit;
-            // shouldAnimateSize = prevFlex.shouldAnimateSize;
-          }
-          _childItemsData[key] = _InsertingFlexItem(
-            key: prev.key as GlobalKey,
-            insertionController: prev.insertionController,
-            removalController: prev.removalController,
-            insertionAnimation: prev.insertionAnimation,
-            removalAnimation: prev.removalAnimation,
-            insertingBuilder: _insertionBuilder,
-            removalBuilder: _removalBuilder,
-            flex: flex,
-            fit: fit,
-            // shouldAnimateSize: shouldAnimateSize,
-            child: child,
-          );
         }
       }
     }
