@@ -1339,12 +1339,12 @@ class AnimatedFlex extends StatefulWidget {
     this.crossAxisAlignment = CrossAxisAlignment.center,
     this.textDirection,
     this.verticalDirection = VerticalDirection.down,
-    this.textBaseline, // NO DEFAULT: we don't know what the text's baseline should be
+    this.textBaseline,
     this.clipBehavior = Clip.none,
     this.spacing = 0.0,
     required this.children,
-    this.movementDuration = defaultMoveAnimationDuration, // Default duration
-    this.sensitivity = 5.0, // Default sensitivity
+    this.movementDuration = defaultMoveAnimationDuration,
+    this.sensitivity = 5.0,
     this.insertionDuration = defaultInsertionDuration,
     this.insertionDelay = defaultInsertionDelayDuration,
     this.insertionBuilder,
@@ -1359,11 +1359,11 @@ class AnimatedFlex extends StatefulWidget {
 
   static AnimatedFlex material3({
     Key? key,
-    required Axis direction,
-    required List<Widget> children,
+    Axis direction = Axis.horizontal,
     MainAxisAlignment mainAxisAlignment = MainAxisAlignment.start,
     MainAxisSize mainAxisSize = MainAxisSize.max,
     CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+    VerticalDirection verticalDirection = VerticalDirection.down,
     TextDirection? textDirection,
     TextBaseline? textBaseline,
     Clip clipBehavior = Clip.none,
@@ -1377,6 +1377,7 @@ class AnimatedFlex extends StatefulWidget {
     Duration removalDuration = material3RemovalDuration,
     Widget Function(Widget child, Animation<double> controller)? removalBuilder,
     Duration? staggeredInitialInsertionAnimation,
+    required List<Widget> children,
   }) {
     return AnimatedFlex(
       key: key,
@@ -1387,6 +1388,7 @@ class AnimatedFlex extends StatefulWidget {
       textDirection: textDirection,
       textBaseline: textBaseline,
       clipBehavior: clipBehavior,
+      verticalDirection: verticalDirection,
       spacing: spacing,
       movementDuration: movementDuration,
       sensitivity: sensitivity,
@@ -1653,21 +1655,23 @@ class _AnimatedFlexState extends State<AnimatedFlex>
       {Duration delay = Duration.zero, bool animateInsert = true}) {
     _requireKey(child);
 
-    AnimationController insertionController;
-    Animation<double> insertionAnimation;
+    AnimationController? insertionController;
     final totalDuration = delay + _insertionDuration;
-    insertionController =
-        AnimationController(vsync: this, duration: totalDuration);
+    if (animateInsert) {
+      insertionController =
+          AnimationController(vsync: this, duration: totalDuration);
+    }
+    Animation<double> insertionAnimation;
     // Apply delay if needed
     insertionAnimation = CurvedAnimation(
-        parent: insertionController,
+        parent: insertionController ?? kAlwaysCompleteAnimation,
         curve: Interval(
             delay.inMilliseconds /
                 (delay.inMilliseconds + totalDuration.inMilliseconds),
             1.0, // End at 1.0
             curve: Curves.easeOut // Default curve for insertion
             ));
-    insertionController.forward();
+    insertionController?.forward();
 
     AnimationController removalController =
         AnimationController(vsync: this, duration: _removalDuration);
@@ -1768,7 +1772,7 @@ class _AnimatedFlexState extends State<AnimatedFlex>
           });
         } else {
           // Couldn't get position, dispose immediately
-          removingItem.insertionController.dispose();
+          removingItem.insertionController?.dispose();
           removingItem.removalController.dispose();
         }
       }
@@ -1791,11 +1795,11 @@ class _AnimatedFlexState extends State<AnimatedFlex>
   void dispose() {
     _moveAnimator.dispose();
     for (final itemData in _childItemsData.values) {
-      itemData.insertionController.dispose();
+      itemData.insertionController?.dispose();
       itemData.removalController.dispose();
     }
     for (final removing in _removingChildren) {
-      removing.parent.insertionController.dispose();
+      removing.parent.insertionController?.dispose();
       removing.parent.removalController.dispose();
     }
     super.dispose();
@@ -1945,7 +1949,7 @@ class _InsertingFlexItem extends StatelessWidget {
   // super.key refers to the original child's key for map lookups.
 
   /// Controller for the insertion animation.
-  final AnimationController insertionController;
+  final AnimationController? insertionController;
 
   /// Controller for the removal animation.
   final AnimationController removalController;
@@ -1966,20 +1970,20 @@ class _InsertingFlexItem extends StatelessWidget {
 
   final double flex;
   final FlexFit fit;
-  final bool shouldAnimateSize;
+  // final bool shouldAnimateSize;
 
   const _InsertingFlexItem({
     required this.child,
     required GlobalKey key, // Use GlobalKey for render object lookup
     required this.insertingBuilder,
     required this.removalBuilder,
-    required this.insertionController,
+    this.insertionController,
     required this.removalController,
     required this.insertionAnimation,
     required this.removalAnimation,
     this.flex = 1,
     this.fit = FlexFit.loose,
-    this.shouldAnimateSize = true,
+    // this.shouldAnimateSize = true,
   }) : super(key: key);
 
   @override
@@ -1987,7 +1991,7 @@ class _InsertingFlexItem extends StatelessWidget {
     return _InternalAnFlexible(
       flex: flex,
       fit: fit,
-      shouldAnimateSize: shouldAnimateSize,
+      // shouldAnimateSize: shouldAnimateSize,
       child: insertingBuilder(child, insertionAnimation),
     );
   }

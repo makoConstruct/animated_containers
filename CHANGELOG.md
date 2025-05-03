@@ -1,5 +1,10 @@
-## 0.9.1
+## 1.0.0
 
+That'll do!
+
+Documented a bunch of stuff.
+
+## 0.9.1
 
 ### AnimatedFlex completed with RanimatedContainer
 

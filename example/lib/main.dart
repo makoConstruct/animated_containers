@@ -35,13 +35,18 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
+enum DemoOrientation {
+  normal,
+  weird,
+}
+
 class _MyHomePageState extends State<MyHomePage> {
   final _random = Random();
   final List<_Item> _items = [];
   int _nextId = 0;
   final FocusNode _focusNode = FocusNode();
   int _insertButtonPressCount = 0;
-
+  DemoOrientation _orientation = DemoOrientation.normal;
   @override
   void initState() {
     super.initState();
@@ -132,16 +137,29 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _resizeOne() {
     setState(() {
-      final index = _random.nextInt(_items.length);
-      final prev = _items[index];
+      final int index = _random.nextInt(_items.length);
+      final _Item prev = _items[index];
+      double width;
+      // repeat until we get a new width
+      do {
+        width = lengthDistribution[_random.nextInt(lengthDistribution.length)];
+      } while (prev.width == width);
       _items[index] = _Item(
         id: prev.id,
         key: prev.key,
-        width: lengthDistribution[_random.nextInt(lengthDistribution.length)],
+        width: width,
         backgroundColor: prev.backgroundColor,
         color: prev.color,
         onTap: prev.onTap,
       );
+    });
+  }
+
+  void _toggleOrientation() {
+    setState(() {
+      _orientation = _orientation == DemoOrientation.normal
+          ? DemoOrientation.weird
+          : DemoOrientation.normal;
     });
   }
 
@@ -180,14 +198,36 @@ class _MyHomePageState extends State<MyHomePage> {
             children: [
               Container(
                 constraints: const BoxConstraints.expand(),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(8.0),
-                  child: AnimatedWrap.material3(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _items.toList(),
-                  ),
-                ),
+                child: switch (_orientation) {
+                  DemoOrientation.normal => SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      padding: const EdgeInsets.all(8.0),
+                      child: AnimatedWrap.material3(
+                        spacing: 8,
+                        runSpacing: 8,
+                        staggeredInitialInsertionAnimation:
+                            const Duration(milliseconds: 29),
+                        children: _items.toList(),
+                      ),
+                    ),
+                  DemoOrientation.weird => SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(8),
+                      child: AnimatedWrap.material3(
+                        direction: Axis.vertical,
+                        alignment: WrapAlignment.start,
+                        runAlignment: WrapAlignment.start,
+                        crossAxisAlignment: AnimatedWrapCrossAlignment.start,
+                        verticalDirection: VerticalDirection.up,
+                        textDirection: TextDirection.rtl,
+                        spacing: 2,
+                        runSpacing: 14,
+                        staggeredInitialInsertionAnimation:
+                            const Duration(milliseconds: 29),
+                        children: _items.toList(),
+                      ),
+                    )
+                },
               ),
               Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -223,6 +263,12 @@ class _MyHomePageState extends State<MyHomePage> {
                       onPressed: () => _resizeOne(),
                       key: const ValueKey('resize one'),
                       child: const Text('resize one'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => _toggleOrientation(),
+                      key: const ValueKey('toggle orientation'),
+                      child: Text(
+                          'orientation: ${_orientation == DemoOrientation.normal ? 'normal' : 'weird'}'),
                     ),
                   ],
                 ),
@@ -284,27 +330,26 @@ class _Item extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return RanimatedContainer(
       constraints: BoxConstraints(minWidth: width),
-      child: Material(
+      animationDuration: material3MoveAnimationDuration,
+      decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.hardEdge,
-        // we use TouchRipple instead of InkWell because InkWell looks terrible and no one should use it.
-        child: ourTouchRipple(
-          onTap: onTap,
-          color: const Color.fromARGB(255, 255, 255, 255),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 8.0,
-            ),
-            child: Text(
-              '$id',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
+      ),
+      child: ourTouchRipple(
+        onTap: onTap,
+        color: const Color.fromARGB(255, 255, 255, 255),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12.0,
+            vertical: 8.0,
+          ),
+          child: Text(
+            '$id',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),

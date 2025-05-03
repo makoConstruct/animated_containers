@@ -10,11 +10,11 @@ import 'package:flutter_touch_ripple/components/touch_ripple_context.dart';
 import 'package:flutter_touch_ripple/widgets/touch_ripple.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const Demo());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class Demo extends StatelessWidget {
+  const Demo({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,19 +25,19 @@ class MyApp extends StatelessWidget {
             seedColor: const Color.fromARGB(255, 34, 34, 34)),
         useMaterial3: true,
       ),
-      home: const MyHomePage(),
+      home: const DemoMainPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+class DemoMainPage extends StatefulWidget {
+  const DemoMainPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<DemoMainPage> createState() => _DemoMainPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _DemoMainPageState extends State<DemoMainPage> {
   final _random = Random();
   int _nextId = 0;
   final List<Widget> _items = [];
@@ -222,6 +222,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     direction: Axis.horizontal,
                     spacing: 8,
                     children: _items.toList(),
+                    staggeredInitialInsertionAnimation:
+                        const Duration(milliseconds: 29),
                   ),
                 ),
               ),

@@ -1014,7 +1014,6 @@ class AnimatedWrap extends StatefulWidget {
     TextDirection textDirection = TextDirection.ltr,
     VerticalDirection verticalDirection = VerticalDirection.down,
     Clip clipBehavior = Clip.none,
-    List<Widget> children = const <Widget>[],
     double sensitivity = 5,
     Duration movementDuration = material3MoveAnimationDuration,
     Duration removalDuration = material3RemovalDuration,
@@ -1023,6 +1022,7 @@ class AnimatedWrap extends StatefulWidget {
     Widget Function(Widget child, Animation<double> controller)?
         insertionBuilder,
     Duration? staggeredInitialInsertionAnimation,
+    List<Widget> children = const <Widget>[],
   }) =>
       AnimatedWrap(
         key: key,
@@ -1056,19 +1056,20 @@ class AnimatedWrap extends StatefulWidget {
                       .drive(CurveTween(curve: Curves.easeInCubic)),
                   child: child);
             },
+        staggeredInitialInsertionAnimation: staggeredInitialInsertionAnimation,
         children: children,
       );
 
   /// The direction to use as the main axis.
   final Axis direction;
 
-  /// How the children within a run should be placed in the main axis.
+  /// How the children within a run should be placed in the main axis. This has special significance for animation, as it's used as a hint as to how the topLeft of the widget may be moving in response to size changes in the AnimatedWrap. So, you can use this to fix certain animation glitches. As an example: if your AnimatedWrap is center-aligned within its parent, and the size of the AnimatedWrap increases, then if you incorrectly passed `WrapAlignment.start`, the children will glitch to the left before animating into place. You can fix that by passing `WrapAlignment.center`. [runAlignment] has the same dynamics but on the other axis.
   final WrapAlignment alignment;
 
   /// How much space to place between children in a run in the main axis.
   final double spacing;
 
-  /// How the runs themselves should be placed in the cross axis.
+  /// How the runs themselves should be placed in the cross axis. This also impacts how size change animations are processed, solving or causing animation glitches. (See [alignment]).
   final WrapAlignment runAlignment;
 
   /// How much space to place between the runs themselves in the cross axis.
@@ -1195,48 +1196,38 @@ class AnimatedWrapState extends State<AnimatedWrap>
   }
 
   _AnimatedWrapItem _makeWrapFor(Widget child,
-      {Duration delay = Duration.zero, bool duringInitState = false}) {
-    if (widget.staggeredInitialInsertionAnimation != null) {
-      _requireKey(child);
-      final insertingController = AnimationController(
-        vsync: this,
-        duration: delay + _insertionDuration,
-      );
-      insertingController.forward();
-      final removalController =
-          AnimationController(duration: _removalDuration, vsync: this);
-      return _AnimatedWrapItem(
-        key: GlobalKey(),
-        insertionController: insertingController,
-        insertionAnimation: CurvedAnimation(
-            parent: insertingController,
-            curve: Interval(
-                delay.inMilliseconds /
-                    (delay.inMilliseconds + _insertionDuration.inMilliseconds),
-                1.0)),
-        removalController: removalController,
-        removalAnimation: removalController,
-        removalBuilder: _removalBuilder,
-        insertionBuilder: _insertionBuilder,
-        child: child,
-      );
-    } else {
-      final removalController =
-          AnimationController(duration: _removalDuration, vsync: this);
-      final insertionController =
-          AnimationController(duration: _insertionDuration, vsync: this);
-      insertionController.forward();
-      return _AnimatedWrapItem(
-        key: GlobalKey(),
-        insertionController: insertionController,
-        insertionAnimation: insertionController,
-        removalController: removalController,
-        removalAnimation: removalController,
-        insertionBuilder: _insertionBuilder,
-        removalBuilder: _removalBuilder,
-        child: child,
-      );
-    }
+      {Duration? insertionDelay = Duration.zero,
+      Duration? insertionDuration,
+      required bool animateInsertion}) {
+    _requireKey(child);
+    final insertingController = animateInsertion
+        ? AnimationController(
+            vsync: this,
+            duration: (insertionDelay ?? Duration.zero) +
+                (insertionDuration ?? _insertionDuration),
+          )
+        : null;
+    insertingController?.forward();
+    final removalController =
+        AnimationController(duration: _removalDuration, vsync: this);
+    return _AnimatedWrapItem(
+      key: GlobalKey(),
+      insertionController: insertingController,
+      insertionAnimation: animateInsertion
+          ? CurvedAnimation(
+              parent: insertingController!,
+              curve: Interval(
+                  insertionDelay!.inMilliseconds /
+                      (insertionDelay.inMilliseconds +
+                          _insertionDuration.inMilliseconds),
+                  1.0))
+          : kAlwaysCompleteAnimation,
+      removalController: removalController,
+      removalAnimation: removalController,
+      removalBuilder: _removalBuilder,
+      insertionBuilder: _insertionBuilder,
+      child: child,
+    );
   }
 
   @override
@@ -1274,13 +1265,13 @@ class AnimatedWrapState extends State<AnimatedWrap>
     if (widget.staggeredInitialInsertionAnimation != null) {
       Duration cumulativeDelay = Duration.zero;
       for (final child in widget.children) {
-        _childItems[child.key!] =
-            _makeWrapFor(child, delay: cumulativeDelay, duringInitState: true);
+        _childItems[child.key!] = _makeWrapFor(child,
+            insertionDelay: cumulativeDelay, animateInsertion: true);
         cumulativeDelay += widget.staggeredInitialInsertionAnimation!;
       }
     } else {
       for (final child in widget.children) {
-        _childItems[child.key!] = _makeWrapFor(child, duringInitState: true);
+        _childItems[child.key!] = _makeWrapFor(child, animateInsertion: false);
       }
     }
   }
@@ -1290,8 +1281,8 @@ class AnimatedWrapState extends State<AnimatedWrap>
     _childItems = HashMap<Key, _AnimatedWrapItem>();
     for (final child in newChildren) {
       _requireKey(child);
-      _childItems[child.key!] =
-          previousChildItems[child.key] ?? _makeWrapFor(child);
+      _childItems[child.key!] = previousChildItems[child.key] ??
+          _makeWrapFor(child, animateInsertion: true);
     }
 
     // insertion animation logic is already handled in _makeWrapFor above, if needed.

@@ -9,13 +9,17 @@ import 'package:flutter/rendering.dart';
 
 import 'package:flutter/widgets.dart';
 
-/// A [Container] but animates in a way that's well suited to layout animations. We can define "ranimation" as a way of implementing animation where the layout update is materially instant, but where the visuals lag behind, or don't immediately directly represent the layout. It has many advantages:
+/// A [Container] but animates in a way that's well suited to layout animations. We can define "ranimation" as a way of implementing animation where the layout update is instant (where in a sense it has *already ran*), but where the visuals move to the new layout smoothly. It has many advantages:
 /// - Doesn't have to call layout every frame of the animation
-/// - Can animate layout changes (conventional animations can't, or can only animate it in limited ways while making it very awkward)
+/// - Can animate layout changes (conventional animations can't, or can only animate it in limited ways while making it very awkward to work with)
 /// - Allows the user to immediately interact with the application as if the change had completed, rather than having to wait for the animation to complete. This also avoids certain kinds of bugs.
 /// shortcomings and bugs
-/// - Currently doesn't interpolate any properties other than size. Implementing this isn't as hard as you'd think though, Decorations have lerp methods. I just didn't need that yet.
-/// - Doesn't render foreground in front of the child (except when animated size is nan)
+/// there's some major todo here though:
+/// - need to interpolate between decorations (using lerpTo methods)
+/// - Animate changes to the clipping rect on size change, not just the decoration.
+/// - Adjust the animation using alignment as a positioning cue as to how the origin of the RenderObject probably moved as a result of the size change.
+/// - Also animate the offset of the contents. Ranimated objects can't animate their origins.
+/// - Render decoration foreground in front of the child.
 class RanimatedContainer extends StatefulWidget {
   /// Creates a widget that combines common painting, positioning, and sizing widgets.
   ///
