@@ -2,8 +2,6 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:animated_containers/animated_containers.dart';
-import 'package:animated_containers/animated_flex.dart';
-import 'package:animated_containers/ranimated_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_touch_ripple/components/touch_ripple_context.dart';

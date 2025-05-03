@@ -456,8 +456,9 @@ class MovementSimulationAnimationController extends Animation<Offset>
 
   @override
   AnimationStatus get status {
-    if (_curSimulation.isDone(lastElapsedDuration.inMicroseconds.toDouble()))
+    if (_curSimulation.isDone(lastElapsedDuration.inMicroseconds.toDouble())) {
       return AnimationStatus.completed;
+    }
     return AnimationStatus.forward;
   }
 

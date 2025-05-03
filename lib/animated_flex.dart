@@ -9,9 +9,7 @@ import 'dart:math' as math;
 import 'dart:collection'; // For HashMap
 import 'package:animated_containers/animated_containers.dart';
 import 'package:circular_reveal_animation/circular_reveal_animation.dart';
-import 'package:flutter/scheduler.dart'; // Potentially for TickerProviderStateMixin if not already imported implicitly
 
-import 'package:animated_containers/retargetable_easers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -2095,11 +2093,10 @@ class AnimatedColumn extends AnimatedFlex {
 /// Users should use AnFlexible instead. We can't do it like [Flexible] does it because children that're passed in aren't direct children of the AniamtedFlex. Instead, we extract that info using a runtime type check and pass it into the _AnimatedFlexItem.
 class _InternalAnFlexible extends ParentDataWidget<AnimatedFlexParentData> {
   const _InternalAnFlexible(
-      {super.key,
-      this.flex = 1,
+      {this.flex = 1,
       // we default to loose because Flexible also does (I'm not completely sure why, but disagreeing would be too confusing).
       this.fit = FlexFit.loose,
-      this.shouldAnimateSize = true,
+      // this.shouldAnimateSize = true,
       required super.child});
 
   final double flex;
@@ -2108,7 +2105,7 @@ class _InternalAnFlexible extends ParentDataWidget<AnimatedFlexParentData> {
   final FlexFit fit;
 
   /// set this to false if the widget animates its own size changes. AnimatedFlex, for instance, does.
-  final bool shouldAnimateSize;
+  final bool shouldAnimateSize = false;
 
   @override
   void applyParentData(RenderObject renderObject) {
@@ -2129,7 +2126,6 @@ class _InternalAnFlexible extends ParentDataWidget<AnimatedFlexParentData> {
 
       if (parentData.shouldAnimateSize != shouldAnimateSize) {
         parentData.shouldAnimateSize = shouldAnimateSize;
-        needsLayout = true;
       }
 
       if (needsLayout) {

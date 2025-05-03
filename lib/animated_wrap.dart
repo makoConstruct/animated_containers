@@ -14,8 +14,6 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:animated_containers/retargetable_easers.dart';
-
 import 'util.dart';
 
 (double leadingSpace, double betweenSpace) distributeWrapSpace(
@@ -1288,7 +1286,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
     // insertion animation logic is already handled in _makeWrapFor above, if needed.
 
     for (final child in oldChildren) {
-      if (_removalBuilder != null && !_childItems.containsKey(child.key)) {
+      if (!_childItems.containsKey(child.key)) {
         _AnimatedWrapItem removing = previousChildItems[child.key]!;
         RenderBox? robj = (removing.key as GlobalKey)
             .currentContext
