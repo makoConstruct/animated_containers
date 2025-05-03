@@ -2,6 +2,10 @@
 
 `AnimatedWrap` is a fully animated alternative to flutter's `Wrap` widget, where layout changes (reordering etc) animate. It also handles insertion and deletion animations.
 
+https://github.com/user-attachments/assets/08744977-a7bb-407f-a7a7-d3787f7e01de
+
+
+
 We also provide `AnimatedFlex` (and an `AnimatedRow`, and `AnimatedColumn`). AnimatedFlex doesn't currently do size change animations the way you'd expect, but we offer another way of doing it, using "ranimated" widgets (currently just `RanimatedContainer`) which we think is arguably better than the idiomatic way.
 
 ## `AnimatedWrap`: Usage
