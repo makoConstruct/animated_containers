@@ -12,6 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_animate: ^4.5.2
+  # this needs to be updated to at least 2.0.2, waiting on https://github.com/qwert2603/circular_reveal_animation/pull/10 . If it hasn't been merged by july, fork it.
   circular_reveal_animation: ^2.0.1
 
 dev_dependencies:

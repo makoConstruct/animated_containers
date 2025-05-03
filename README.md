@@ -96,7 +96,7 @@ We'd like more motion simulations of this kind, though with variable duration, i
 
 ### why we don't currently support flex sizing within a wrap
 
-I was considering doing this, but the usecases I had in mind turned out not to make a lot of sense on further consideration.
+I just about implemented this (1f9e05), but on consideration, I don't see any usecases for it. I think it wouldn't make a lot of sense:
 
 First, you'd need to impose a fairly tight limit on how wide or how short an item can be, since if you have no limit, items on orphan lines will often be freakishly wide, and if you have no lower limit, items will frequently be squished into a tiny sliver by their siblings. And if you're going to impose that sort of constraint, you're not getting any major practical benefits from having flex sizing.
 
