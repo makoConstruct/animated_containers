@@ -679,9 +679,15 @@ class AnimatedWrapRender extends RenderBox
     if (previousSize != null && size != previousSize) {
       // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also aniamte movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
       // move everything in train with the far horizontal boundary if appropriate
+      final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
+      final farSideMain =
+          flipMainAxis ? WrapAlignment.start : WrapAlignment.end;
+      final farSideCross =
+          flipCrossAxis ? WrapAlignment.start : WrapAlignment.end;
+
       if (direction == Axis.horizontal
-          ? alignment == WrapAlignment.end
-          : runAlignment == WrapAlignment.end) {
+          ? alignment == farSideMain
+          : runAlignment == farSideCross) {
         var dx = size.width - (previousSize?.width ?? 0);
         for (RenderBox? child = firstChild;
             child != null;
@@ -704,8 +710,8 @@ class AnimatedWrapRender extends RenderBox
       }
       // move everything in train with the far vertical boundary if appropriate
       if (direction == Axis.vertical
-          ? alignment == WrapAlignment.end
-          : runAlignment == WrapAlignment.end) {
+          ? alignment == farSideMain
+          : runAlignment == farSideCross) {
         var dy = size.height - (previousSize?.height ?? 0);
         for (RenderBox? child = firstChild;
             child != null;
@@ -816,8 +822,7 @@ class AnimatedWrapRender extends RenderBox
     assert(runMetrics.isNotEmpty);
     final double totalRunSpacing = runSpacing * (runMetrics.length - 1);
     childrenAxisSize +=
-        AxisSize(mainAxisExtent: totalRunSpacing, crossAxisExtent: 0.0) +
-            currentRun!.axisSize.flipped;
+        AxisSize(mainAxisExtent: totalRunSpacing, crossAxisExtent: 0.0);
 
     return (childrenAxisSize.flipped, runMetrics);
   }
@@ -1089,7 +1094,8 @@ class AnimatedWrap extends StatefulWidget {
   final Clip clipBehavior;
 
   /// The widgets below this widget in the tree.
-  final List<Widget> children;
+  /// if null, doesn't override the state's copy of the children. Set to null for stateful management of children (which you'd need if you want to remove without a removal animation, or if you want to insert directly from a drag animation)
+  final List<Widget>? children;
 
   /// The duration over which to animate changes in child positions.
   final Duration movementDuration;
@@ -1128,8 +1134,21 @@ class AnimatedWrap extends StatefulWidget {
 
 class _Removal {
   final _AnimatedWrapItem item;
-  final Rect rect;
-  _Removal(this.item, this.rect);
+
+  /// optional because which ones to use depends on the alignment of the wrap.
+  final double? left;
+  final double? right;
+  final double? bottom;
+  final double? top;
+  final double width;
+  final double height;
+  _Removal(this.item,
+      {this.left,
+      this.right,
+      this.bottom,
+      this.top,
+      required this.width,
+      required this.height});
 }
 
 class Insertion {
@@ -1176,6 +1195,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
   late final Widget Function(Widget, Animation<double>) _removalBuilder;
   late final Duration _removalDuration;
   final List<_Removal> _removingChildren = [];
+  List<Widget> children = [];
   @override
   void dispose() {
     for (final child in _childItems.values) {
@@ -1194,15 +1214,15 @@ class AnimatedWrapState extends State<AnimatedWrap>
   }
 
   _AnimatedWrapItem _makeWrapFor(Widget child,
-      {Duration? insertionDelay = Duration.zero,
+      {Duration insertionDelay = Duration.zero,
       Duration? insertionDuration,
       required bool animateInsertion}) {
     _requireKey(child);
     final insertingController = animateInsertion
         ? AnimationController(
             vsync: this,
-            duration: (insertionDelay ?? Duration.zero) +
-                (insertionDuration ?? _insertionDuration),
+            duration:
+                insertionDelay + (insertionDuration ?? _insertionDuration),
           )
         : null;
     insertingController?.forward();
@@ -1215,7 +1235,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
           ? CurvedAnimation(
               parent: insertingController!,
               curve: Interval(
-                  insertionDelay!.inMilliseconds /
+                  insertionDelay.inMilliseconds /
                       (insertionDelay.inMilliseconds +
                           _insertionDuration.inMilliseconds),
                   1.0))
@@ -1231,8 +1251,9 @@ class AnimatedWrapState extends State<AnimatedWrap>
   @override
   void initState() {
     super.initState();
+    children = widget.children ?? [];
     assert(() {
-      for (final child in widget.children) {
+      for (final child in children) {
         if (child.key == null) {
           throw FlutterError('All children of AnimatedWrap must have keys.\n'
               'This is required for proper animation tracking when children are added, removed, or reordered.');
@@ -1262,37 +1283,41 @@ class AnimatedWrapState extends State<AnimatedWrap>
 
     if (widget.staggeredInitialInsertionAnimation != null) {
       Duration cumulativeDelay = Duration.zero;
-      for (final child in widget.children) {
+      for (final child in children) {
         _childItems[child.key!] = _makeWrapFor(child,
             insertionDelay: cumulativeDelay, animateInsertion: true);
         cumulativeDelay += widget.staggeredInitialInsertionAnimation!;
       }
     } else {
-      for (final child in widget.children) {
+      for (final child in children) {
         _childItems[child.key!] = _makeWrapFor(child, animateInsertion: false);
       }
     }
   }
 
-  void checkChildChanges(List<Widget> oldChildren, List<Widget> newChildren) {
+  void setChildren(List<Widget> newChildren,
+      {bool animateRemovals = true, bool animateInsertion = true}) {
     final previousChildItems = _childItems;
     _childItems = HashMap<Key, _AnimatedWrapItem>();
+    children = newChildren;
     for (final child in newChildren) {
       _requireKey(child);
+      // this is incorrect, if the widget changes even if the key stays the same, the widget has to be updated
       _childItems[child.key!] = previousChildItems[child.key] ??
-          _makeWrapFor(child, animateInsertion: true);
+          _makeWrapFor(child, animateInsertion: animateInsertion);
     }
 
     // insertion animation logic is already handled in _makeWrapFor above, if needed.
 
-    for (final child in oldChildren) {
-      if (!_childItems.containsKey(child.key)) {
-        _AnimatedWrapItem removing = previousChildItems[child.key]!;
+    for (final ck in previousChildItems.keys) {
+      if (!_childItems.containsKey(ck) && animateRemovals) {
+        _AnimatedWrapItem removing = previousChildItems[ck]!;
         RenderBox? robj = (removing.key as GlobalKey)
             .currentContext
             ?.findRenderObject() as RenderBox?;
-        Offset? o = robj?.localToGlobal(Offset.zero,
-            ancestor: _stackKey.currentContext?.findRenderObject());
+        RenderBox? stackRobj =
+            _stackKey.currentContext?.findRenderObject() as RenderBox?;
+        Offset? o = robj?.localToGlobal(Offset.zero, ancestor: stackRobj);
         Size? s = robj?.size;
         if (o != null && s != null) {
           removing.removalController?.forward();
@@ -1306,8 +1331,57 @@ class AnimatedWrapState extends State<AnimatedWrap>
             }
           });
 
+          WrapAlignment flipIf(WrapAlignment v, bool condition) {
+            if (!condition) {
+              return v;
+            }
+            if (v == WrapAlignment.start) {
+              return WrapAlignment.end;
+            } else if (v == WrapAlignment.end) {
+              return WrapAlignment.start;
+            } else {
+              return v;
+            }
+          }
+
+          // this stuff makes sure the removal object is positioned fairly consistently even if the size of the AnimatedWrap changes.
+
+          //guess I'll have to replicate the alignment logic from the renderobject due to being unable to access our renderobject. I'm pretty mad about this at this point.
+          // this will fail to address center/stretch alignment. To do that, you'd need to move this into the renderobject, and to do that, you'd also need to move the stack/remove stuff in there.
+          WrapAlignment horizontalAlignment = widget.direction ==
+                  Axis.horizontal
+              ? flipIf(
+                  widget.alignment, widget.textDirection == TextDirection.rtl)
+              : flipIf(widget.runAlignment,
+                  widget.verticalDirection == VerticalDirection.up);
+
+          WrapAlignment verticalAlignment = widget.direction == Axis.horizontal
+              ? flipIf(widget.runAlignment,
+                  widget.verticalDirection == VerticalDirection.up)
+              : flipIf(
+                  widget.alignment, widget.textDirection == TextDirection.rtl);
+
+          Rect removingRect = o & s;
+
           setState(() {
-            _removingChildren.add(_Removal(removing, o & s));
+            // right and bottom are measured in the rect from the start, but they have to be recorded for a Positioned widget as measured from the ends.
+            _removingChildren.add(_Removal(
+              removing,
+              left: horizontalAlignment == WrapAlignment.start
+                  ? removingRect.left
+                  : null,
+              right: horizontalAlignment == WrapAlignment.end
+                  ? removingRect.right - stackRobj!.size.width
+                  : null,
+              top: verticalAlignment == WrapAlignment.start
+                  ? removingRect.top
+                  : null,
+              bottom: verticalAlignment == WrapAlignment.end
+                  ? removingRect.bottom - stackRobj!.size.height
+                  : null,
+              width: removingRect.width,
+              height: removingRect.height,
+            ));
           });
         } else {
           removing.removalController?.dispose();
@@ -1326,17 +1400,35 @@ class AnimatedWrapState extends State<AnimatedWrap>
       _moveAnimator.duration = widget.movementDuration;
     }
 
-    if (oldWidget.children != widget.children) {
-      checkChildChanges(oldWidget.children, widget.children);
+    if (widget.children != null) {
+      if (children != widget.children) {
+        setChildren(widget.children!);
+      } else {
+        assert(children.length == widget.children?.length,
+            "list mutation detected. Don't mutate the lists you use for widget children, widgets in production wont notice the change at all.");
+      }
     }
+  }
+
+  void removeWithoutRemovalAnimation(Key key) {
+    setChildren(children.where((e) => e.key != key).toList(),
+        animateRemovals: false);
+  }
+
+  void insertWithoutInsertionAnimation(Widget v, {int? at}) {
+    final int index = at ?? children.length;
+    _requireKey(v);
+    setChildren(
+        children.take(index).toList() + [v] + children.skip(index).toList(),
+        animateInsertion: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final children = widget.children.map((e) {
-      final _AnimatedWrapItem item = _childItems[e.key]!;
+    final cs = children.map((e) {
+      final _AnimatedWrapItem item = _childItems[e.key!]!;
       if (e != item.child) {
-        return _AnimatedWrapItem(
+        var ni = _AnimatedWrapItem(
           key: item.key,
           insertionController: item.insertionController,
           insertionAnimation: item.insertionAnimation,
@@ -1346,17 +1438,21 @@ class AnimatedWrapState extends State<AnimatedWrap>
           removalBuilder: item.removalBuilder,
           child: e,
         );
+        _childItems[e.key!] = ni;
+        return ni;
       } else {
         return item;
       }
     }).toList();
-    return Stack(key: _stackKey, children: [
+    return Stack(key: _stackKey, clipBehavior: widget.clipBehavior, children: [
       ..._removingChildren.map((_Removal e) {
         return Positioned(
-          left: e.rect.left,
-          top: e.rect.top,
-          width: e.rect.width,
-          height: e.rect.height,
+          left: e.left,
+          top: e.top,
+          bottom: e.bottom,
+          right: e.right,
+          width: e.width,
+          height: e.height,
           child: e.item,
         );
       }),
@@ -1372,7 +1468,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
         clipBehavior: widget.clipBehavior,
         animation: _moveAnimator,
         sensitivity: widget.sensitivity,
-        children: children,
+        children: cs,
       ),
     ]);
   }
@@ -1417,7 +1513,6 @@ class _AnimatedWrapItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // this mess is just, it uses the builder/controller if it's available, that's it, that's all.
     return removalBuilder(
         insertionBuilder(child, insertionAnimation), removalAnimation);
   }

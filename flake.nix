@@ -15,13 +15,14 @@
           config.allowUnfree = true;
           config.android_sdk.accept_license = true;
         };
+        usingAndroid = false;
         android = pkgs.androidenv.composeAndroidPackages {
           toolsVersion = "26.1.1";
           platformToolsVersion = "34.0.1";
-          buildToolsVersions = [ "30.0.1" "33.0.1" ];
+          buildToolsVersions = [ "33.0.1" ];
           includeEmulator = true;
           emulatorVersion = "34.1.9";
-          platformVersions = [ "28" "29" "33" "34" "35" ];
+          platformVersions = [ "35" ];
           includeSources = false;
           includeSystemImages = true;
           # we need "google_apis" here but it doesn't build, nix hashes are wrong
@@ -44,33 +45,36 @@
           # ];
         };
       in {
+        # android currently disabled
         devShells.default =
-          pkgs.mkShell {
-            buildInputs = with pkgs; [
-              flutter327
-              jdk17
-              android.platform-tools
-              gst_all_1.gstreamer
-              gst_all_1.gst-plugins-base
-              gst_all_1.gst-plugins-good
-              gst_all_1.gst-libav
-              glibc
-              # you may need this for linux
-              # pkg-config gtk3 gtk3.dev ninja clang glibc
-            ];
-            
-            nativeBuildInputs = [pkgs.pkg-config];
-            
-            shellHook = ''
-              export PKG_CONFIG_PATH="${pkgs.gst_all_1.gstreamer.dev}/lib/pkgconfig:${pkgs.gst_all_1.gst-plugins-base.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
-              export PS1="$PS1 (❄ "
-            '';
-
-            ANDROID_HOME = android.androidsdk + /libexec/android-sdk;
-            JAVA_HOME = pkgs.jdk17;
-            ANDROID_AVD_HOME = (toString ./.) + "/.android/avd";
-            ANDROID_SDK_ROOT = android.androidsdk + /libexec/android-sdk;
-          };
+          pkgs.mkShell
+            (
+              {
+                buildInputs = with pkgs; [
+                  flutter327
+                  jdk17
+                  gst_all_1.gstreamer
+                  gst_all_1.gst-plugins-base
+                  gst_all_1.gst-plugins-good
+                  gst_all_1.gst-libav
+                  glibc
+                  # you may need this for linux
+                  # pkg-config gtk3 gtk3.dev ninja clang glibc
+                ] ++ (if usingAndroid then [android.platform-tools] else []);
+                
+                nativeBuildInputs = [pkgs.pkg-config];
+                
+                shellHook = ''
+                  export PKG_CONFIG_PATH="${pkgs.gst_all_1.gstreamer.dev}/lib/pkgconfig:${pkgs.gst_all_1.gst-plugins-base.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
+                  export PS1="$PS1 (❄ "
+                '';
+              } // (if usingAndroid then {
+                JAVA_HOME = pkgs.jdk17;
+                ANDROID_HOME = android.androidsdk + /libexec/android-sdk;
+                ANDROID_AVD_HOME = (toString ./.) + "/.android/avd";
+                ANDROID_SDK_ROOT = android.androidsdk + /libexec/android-sdk;
+              } else {})
+            );
         
         # needed because gradle wants to use dynamic linking or something. I don't understand why this is a problem.
         # this isn't working. can't accept licenses. Unsure what happened with the above.

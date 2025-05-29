@@ -233,8 +233,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 padding: const EdgeInsets.all(16.0),
                 child: AnimatedWrap.material3(
                   alignment: WrapAlignment.center,
-                  runAlignment: WrapAlignment.end,
-                  crossAxisAlignment: AnimatedWrapCrossAlignment.end,
+                  runAlignment: WrapAlignment.start,
                   verticalDirection: VerticalDirection.up,
                   spacing: 11,
                   runSpacing: 11,

@@ -1,3 +1,14 @@
+
+## 1.1.0
+
+Improved readme's argument against having flex sizing within a wrap.
+
+Fixed oversizing bug where there's always an additional line at the bottom of the wrap.
+
+Mitigated removal positioning issue on size change. Impossible to do fully without putting removals in the renderobject =__= but it works for start and end alignment. But not for center or spaceBetween.
+
+Fixed example button layout animation alignment (the runAlignment was wrong).
+
 ## 1.0.0
 
 That'll do!

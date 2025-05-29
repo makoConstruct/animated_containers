@@ -13,6 +13,7 @@ import 'package:flutter/widgets.dart';
 /// - Doesn't have to call layout every frame of the animation
 /// - Can animate layout changes (conventional animations can't, or can only animate it in limited ways while making it very awkward to work with)
 /// - Allows the user to immediately interact with the application as if the change had completed, rather than having to wait for the animation to complete. This also avoids certain kinds of bugs.
+/// - Allows the animation to plan its motion more intelligently because the target isn't constantly being changed.
 /// shortcomings and bugs
 /// there's some major todo here though:
 /// - need to interpolate between decorations (using lerpTo methods)
