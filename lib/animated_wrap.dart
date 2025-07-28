@@ -45,7 +45,7 @@ import 'util.dart';
   };
 }
 
-/// Who [AnimatedWrap] should align children within a run in the cross axis.
+/// How [AnimatedWrap] should align children within a run in the cross axis.
 enum AnimatedWrapCrossAlignment {
   /// Place the children as close to the start of the run in the cross axis as
   /// possible.
@@ -101,6 +101,20 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
   // which can be set via a Flowable
   Offset previousOffset = const Offset(double.nan, double.nan);
   Offset previousVelocity = const Offset(0, 0);
+}
+
+/// a position at which a child can be inserted
+class InsertionPoint {
+  final int index;
+  final Offset position;
+
+  /// is wide when it's not inserting at a between point, in which case a narrow selector visual wouldn't look right
+  final bool inserterWide;
+  const InsertionPoint({
+    required this.index,
+    required this.position,
+    this.inserterWide = false,
+  });
 }
 
 /// Displays its children in multiple horizontal or vertical runs.
@@ -173,7 +187,6 @@ class AnimatedWrapRender extends RenderBox
       return;
     }
     _direction = value;
-    markNeedsLayout();
   }
 
   // Simulation Function(Offset position, Offset velocity)? moveSimulationConstructor;
@@ -632,6 +645,11 @@ class AnimatedWrapRender extends RenderBox
 
     final (AxisSize childrenAxisSize, List<_RunMetrics> runMetrics) =
         _computeRuns(constraints, ChildLayoutHelper.layoutChild);
+    if (previousComputedRuns != null) {
+      //then we're caching these so let's cache this one
+      previousComputedRuns = (childrenAxisSize, runMetrics);
+    }
+
     final AxisSize containerAxisSize =
         childrenAxisSize.applyConstraints(constraints, direction);
     size = containerAxisSize.toSize(direction);
@@ -677,7 +695,7 @@ class AnimatedWrapRender extends RenderBox
     // correct the previousOffsets if needed:
     // we adjust previousOffsets depending on alignment if there was a size change. This makes it possible to prevent certain animation discontinuities. EG: If you had extra space on the right, but were then shortened, you would never expect the children to glitch to the left before animating back. Yet if you reverse the scene and do that (size change for a right-aligned wrap), that actually does happen! We address that here.
     if (previousSize != null && size != previousSize) {
-      // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also aniamte movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
+      // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also animate movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
       // move everything in train with the far horizontal boundary if appropriate
       final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
       final farSideMain =
@@ -893,6 +911,180 @@ class AnimatedWrapRender extends RenderBox
     return defaultHitTestChildren(result, position: position);
   }
 
+  /// returns the index at which an object being inserted at position p
+  /// usually used for drag and drop insertion index calculation
+  /// insertionSpacingForClear, used in cases where the insertion indicator should be placed in a clear zone, not right adjacent to a child (eg, if an insertion is to be done after the end of a row, where the row isn't close to the edge of the wrap), is the amount of space to put between the center of the insertion point and the edge of the container or the nearest child.
+  InsertionPoint insertionIndexAt(Offset p,
+      {double insertionSpacingForClear = 20}) {
+    // if not null, then it's updated by performLayout
+    if (previousBoxConstraints == null) {
+      // this would never happen, since it would mean the drag and drop is happening before the container has been laid out, which a user can't do
+      // note, the position isn't quite right, but this might not get used
+      return const InsertionPoint(
+          index: 0, position: Offset.zero, inserterWide: true);
+    }
+
+    // we compute from previous frame's positions
+    previousComputedRuns ??=
+        _computeRuns(previousBoxConstraints!, ChildLayoutHelper.dryLayoutChild);
+    final (AxisSize childrenAxisSize, List<_RunMetrics> runMetrics) =
+        previousComputedRuns!;
+
+    // we generally work with normalized positions where runs go to the right and down, we flip back at the end
+    Offset flipOffset(Offset o) => Offset(o.dy, o.dx);
+    Size flipSize(Size s) => Size(s.height, s.width);
+    // normalized size
+    final Size rsize = direction == Axis.horizontal ? size : flipSize(size);
+    double maybeFlippedAxis(double x, bool flipped, double span) =>
+        flipped ? span - x : x;
+    Offset transform(Offset o) {
+      Offset result = o;
+      result = direction == Axis.horizontal ? result : flipOffset(result);
+      result = Offset(
+          maybeFlippedAxis(
+              result.dx, textDirection == TextDirection.rtl, rsize.width),
+          maybeFlippedAxis(result.dy, verticalDirection == VerticalDirection.up,
+              rsize.height));
+      return result;
+    }
+
+    Offset transformBack(Offset o) {
+      // reverse of normalizeRect for offset
+      Offset result = o;
+      result = Offset(
+          maybeFlippedAxis(
+              result.dx, textDirection == TextDirection.rtl, rsize.width),
+          maybeFlippedAxis(result.dy, verticalDirection == VerticalDirection.up,
+              rsize.height));
+      result = direction == Axis.horizontal ? result : flipOffset(result);
+      return result;
+    }
+
+    // translates a rect representing the position of a child so that it is as if the flow is left to right top to bottom
+    Rect normalizeRect(Rect rect) {
+      Rect r = rect;
+      r = direction == Axis.horizontal
+          ? r
+          : flipOffset(r.topLeft) & flipSize(r.size);
+      r = textDirection == TextDirection.ltr
+          ? r
+          : Offset(size.width - (r.topLeft.dx + r.width), r.topLeft.dy) &
+              r.size;
+      r = verticalDirection == VerticalDirection.down
+          ? r
+          : Offset(r.topLeft.dx, size.height - (r.topLeft.dy + r.height)) &
+              r.size;
+      return r;
+    }
+
+    final Offset pr = transform(p);
+
+    // performance opportunity if needed; you can speed this up by first doing a spine check, where you check the leadingChild of each row to rule most rows out
+    // complications: we don't know which row we're in until we've processed the following row to find its lowest y and see whether it's closer to the insertion point than the prev row's highest y
+    // remember the nearest one from the previous row, check the next row to see if there's anything nearer per the y of that row, if not, it's the one from the previous.
+    int itotal = 0;
+    if (runMetrics.isEmpty) {
+      return InsertionPoint(
+          index: 0,
+          position: Offset(insertionSpacingForClear, insertionSpacingForClear),
+          inserterWide: true);
+    }
+    // (nearest in x, nearest from the edge of the child)
+    // whether the cursor is on the right side
+    bool prevNearestIndicatorIsWide = false;
+    double prevRowsLowestY = double.infinity;
+    double prevRowsHighestY = double.negativeInfinity;
+    double prevRowsNearestIndicatorX = 0;
+    int prevRowsNearestChildIndex = 0;
+    for (int i = 0; i < runMetrics.length; i++) {
+      final _RunMetrics run = runMetrics[i];
+      double thisRowsLowestY = double.infinity;
+      double thisRowsHighestY = double.negativeInfinity;
+      double nearestChildDistanceX = double.infinity;
+      int nearestChildIndex = 0;
+      double? nearestIndicatorX;
+      // whether the indicator is right next to the child/between the child and the edge of the widget
+      bool nearestIndicatorIsWide = false;
+      RenderBox? child = run.leadingChild;
+      double? previousChildRightEdge;
+      bool nearestIndicatorXNeedsSetting = false;
+      for (int j = 0; j < run.childCount; j++) {
+        if (child == null) {
+          break;
+        }
+        final Rect childBounds = normalizeRect(
+            (child.parentData as AnimatedWrapParentData).offset & child.size);
+        if (childBounds.top < thisRowsLowestY) {
+          thisRowsLowestY = childBounds.top;
+        }
+        if (childBounds.top > thisRowsHighestY) {
+          thisRowsHighestY = childBounds.top;
+        }
+        if (nearestIndicatorXNeedsSetting) {
+          nearestIndicatorX = (previousChildRightEdge! + childBounds.left) / 2;
+          nearestIndicatorXNeedsSetting = false;
+        }
+        // check nearness to each side of the child
+        double distance = (childBounds.left - pr.dx).abs();
+        if (distance < nearestChildDistanceX) {
+          nearestChildIndex = j;
+          nearestChildDistanceX = distance;
+          if (previousChildRightEdge != null) {
+            nearestIndicatorIsWide = false;
+            nearestIndicatorX = childBounds.left - insertionSpacingForClear;
+          } else {
+            nearestIndicatorIsWide = true;
+            nearestIndicatorX = previousChildRightEdge == null
+                ? childBounds.left
+                : (previousChildRightEdge + childBounds.left) / 2;
+          }
+        }
+        distance = (childBounds.right - pr.dx).abs();
+        if (distance < nearestChildDistanceX) {
+          nearestChildIndex = j;
+          nearestChildDistanceX = distance;
+          // we don't know the next child's left, so can't set nearestX, this flag will make sure it's done either way
+          nearestIndicatorXNeedsSetting = true;
+        }
+        itotal += 1;
+        previousChildRightEdge = childBounds.right;
+        child = (child.parentData as AnimatedWrapParentData).nextSibling;
+      }
+      if (nearestIndicatorXNeedsSetting) {
+        nearestIndicatorX = previousChildRightEdge! + insertionSpacingForClear;
+      }
+      if (pr.dy < (thisRowsHighestY + prevRowsLowestY) / 2) {
+        //then it could be in this row
+        if (pr.dy > thisRowsLowestY) {
+          // then it is in this row. Otherwise, continue on to the next row to find out where that boundary is, and then we'll know for sure
+          return InsertionPoint(
+              index: itotal,
+              position: transformBack(Offset(nearestIndicatorX!,
+                  (thisRowsLowestY + thisRowsHighestY) / 2)),
+              inserterWide: nearestIndicatorIsWide);
+        }
+      } else {
+        //then it's actually in the previous row
+        return InsertionPoint(
+            index: prevRowsNearestChildIndex,
+            position: transformBack(Offset(prevRowsNearestIndicatorX,
+                (prevRowsLowestY + prevRowsHighestY) / 2)),
+            inserterWide: prevNearestIndicatorIsWide);
+      }
+      prevRowsLowestY = thisRowsLowestY;
+      prevRowsHighestY = thisRowsHighestY;
+      prevRowsNearestIndicatorX = nearestIndicatorX ?? 0;
+      prevRowsNearestChildIndex = nearestChildIndex;
+      prevNearestIndicatorIsWide = nearestIndicatorIsWide;
+    }
+
+    return InsertionPoint(
+        index: runMetrics.length,
+        position: transformBack(
+            Offset(insertionSpacingForClear, insertionSpacingForClear)),
+        inserterWide: true);
+  }
+
   void doPaint(PaintingContext context, Offset offset) {
     _clipRectLayer.layer = null;
     // Paint each child with its current animated position
@@ -974,10 +1166,18 @@ class AnimatedWrapRender extends RenderBox
   }
 
   double _sensitivity;
+
   set sensitivity(double value) {
     if (_sensitivity == value) return;
     _sensitivity = value;
   }
+
+  // cached for ~ hit testing during drag and drop: we don't want to be recomputing them every frame unnecessarily
+  // only starts caching (sets this to non-null) when insertionIndexAt is called at least once. ie, usually for drag and drop insertion calculation.
+  // it's, of course, acceptable for the layout info to be a frame out of date for drag and drop, since the user's knowledge of the layout info is also a frame out of date.
+  (AxisSize, List<_RunMetrics>)? previousComputedRuns;
+  // updated in performLayout, used in insertionIndexAt when necessary
+  BoxConstraints? previousBoxConstraints;
 }
 
 /// An animated version of [Wrap] that smoothly transitions children when their positions change.
@@ -1456,7 +1656,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
           child: e.item,
         );
       }),
-      _AnimatedWrapRender(
+      _AnimatedWrapRenderWidget(
         direction: widget.direction,
         alignment: widget.alignment,
         spacing: widget.spacing,
@@ -1518,8 +1718,8 @@ class _AnimatedWrapItem extends StatelessWidget {
   }
 }
 
-class _AnimatedWrapRender extends MultiChildRenderObjectWidget {
-  const _AnimatedWrapRender({
+class _AnimatedWrapRenderWidget extends MultiChildRenderObjectWidget {
+  const _AnimatedWrapRenderWidget({
     required this.direction,
     required this.alignment,
     required this.spacing,
