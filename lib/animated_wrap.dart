@@ -636,6 +636,7 @@ class AnimatedWrapRender extends RenderBox
   @override
   void performLayout() {
     final BoxConstraints constraints = this.constraints;
+    previousBoxConstraints = constraints;
     assert(_debugHasNecessaryDirections);
     if (firstChild == null) {
       size = constraints.smallest;
@@ -911,7 +912,7 @@ class AnimatedWrapRender extends RenderBox
     return defaultHitTestChildren(result, position: position);
   }
 
-  /// returns the index at which an object being inserted at position p
+  /// returns the index at which an object being inserted at position p (where p is relative to the top left of the wrap)
   /// usually used for drag and drop insertion index calculation
   /// insertionSpacingForClear, used in cases where the insertion indicator should be placed in a clear zone, not right adjacent to a child (eg, if an insertion is to be done after the end of a row, where the row isn't close to the edge of the wrap), is the amount of space to put between the center of the insertion point and the edge of the container or the nearest child.
   InsertionPoint insertionIndexAt(Offset p,
@@ -1388,6 +1389,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
   late HashMap<Key, _AnimatedWrapItem> _childItems =
       HashMap<Key, _AnimatedWrapItem>();
   final GlobalKey _stackKey = GlobalKey();
+  final GlobalKey _renderWidgetKey = GlobalKey();
 
   /// we keep another one so that we can default-initialize them if the user fails to supply one or the other.
   late final Widget Function(Widget, Animation<double>) _insertionBuilder;
@@ -1411,6 +1413,12 @@ class AnimatedWrapState extends State<AnimatedWrap>
       throw Exception(
           "AnimatedWrap requires all children to have unique keys. We can't animate changes if we can't tell when a widget is new, removed, or moved, and to tell that, we need keys.");
     }
+  }
+
+  InsertionPoint insertionIndexAt(Offset offset) {
+    final renderWidget = _renderWidgetKey.currentContext!.findRenderObject()
+        as AnimatedWrapRender;
+    return renderWidget.insertionIndexAt(offset);
   }
 
   _AnimatedWrapItem _makeWrapFor(Widget child,
@@ -1657,6 +1665,7 @@ class AnimatedWrapState extends State<AnimatedWrap>
         );
       }),
       _AnimatedWrapRenderWidget(
+        key: _renderWidgetKey,
         direction: widget.direction,
         alignment: widget.alignment,
         spacing: widget.spacing,
@@ -1720,6 +1729,7 @@ class _AnimatedWrapItem extends StatelessWidget {
 
 class _AnimatedWrapRenderWidget extends MultiChildRenderObjectWidget {
   const _AnimatedWrapRenderWidget({
+    super.key,
     required this.direction,
     required this.alignment,
     required this.spacing,

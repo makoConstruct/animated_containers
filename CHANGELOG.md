@@ -1,3 +1,6 @@
+## 1.2.0
+
+Wrote `InsertionPoint insertionIndexAt(Offset p, {double insertionSpacingForClear = 20})`, needed for drag and drop insertion index calculation.
 
 ## 1.1.0
 
