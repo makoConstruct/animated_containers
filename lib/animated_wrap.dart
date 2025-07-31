@@ -20,20 +20,18 @@ import 'util.dart';
     WrapAlignment alignment,
     double freeSpace,
     double itemSpacing,
-    int itemCount,
-    bool flipped) {
+    int itemCount) {
   assert(itemCount > 0);
   return switch (alignment) {
-    WrapAlignment.start => (flipped ? freeSpace : 0.0, itemSpacing),
-    WrapAlignment.end => distributeWrapSpace(
-        WrapAlignment.start, freeSpace, itemSpacing, itemCount, !flipped),
+    WrapAlignment.start => (0.0, itemSpacing),
+    WrapAlignment.end => (freeSpace, itemSpacing),
     WrapAlignment.spaceBetween when itemCount < 2 => distributeWrapSpace(
-        WrapAlignment.start, freeSpace, itemSpacing, itemCount, flipped),
-    WrapAlignment.center => (freeSpace / 2.0, itemSpacing),
+        WrapAlignment.start, freeSpace, itemSpacing, itemCount),
     WrapAlignment.spaceBetween => (
         0,
         freeSpace / (itemCount - 1) + itemSpacing
       ),
+    WrapAlignment.center => (freeSpace / 2.0, itemSpacing),
     WrapAlignment.spaceAround => (
         freeSpace / itemCount / 2,
         freeSpace / itemCount + itemSpacing
@@ -305,7 +303,7 @@ class AnimatedWrapRender extends RenderBox
   }
 
   /// Determines the order to lay children out horizontally and how to interpret
-  /// `start` and `end` in the horizontal direction.
+  /// `start` and `end` in the horizontal direction. Not actually about text. Is merely analagous to the way text is laid out in paragraphs.
   ///
   /// If the [direction] is [Axis.horizontal], this controls the order in which
   /// children are positioned (left-to-right or right-to-left), and the meaning
@@ -336,8 +334,9 @@ class AnimatedWrapRender extends RenderBox
     }
   }
 
-  /// Determines the order to lay children out vertically and how to interpret
-  /// `start` and `end` in the vertical direction.
+  /// Determines the order in which runs are laid out. When [direction] is [Axis.vertical], this corresponds to the literal vertical direction, while if it's [Axis.horizontal], well, it'll determine the horizontal direction. It actually controls the order of the runs. Maybe I should rename it to `multilineDirection` or something.
+  ///
+  /// (the following was copied from flutter Wrap, it's written insanely but afaik it's true.)
   ///
   /// If the [direction] is [Axis.vertical], this controls which order children
   /// are painted in (down or up), the meaning of the [alignment] property's
@@ -526,21 +525,6 @@ class AnimatedWrapRender extends RenderBox
     };
   }
 
-  (bool flipHorizontal, bool flipVertical) get _areAxesFlipped {
-    final bool flipHorizontal = switch (textDirection ?? TextDirection.ltr) {
-      TextDirection.ltr => false,
-      TextDirection.rtl => true,
-    };
-    final bool flipVertical = switch (verticalDirection) {
-      VerticalDirection.down => false,
-      VerticalDirection.up => true,
-    };
-    return switch (direction) {
-      Axis.horizontal => (flipHorizontal, flipVertical),
-      Axis.vertical => (flipVertical, flipHorizontal),
-    };
-  }
-
   @override
   double? computeDryBaseline(
       covariant BoxConstraints constraints, TextBaseline baseline) {
@@ -698,15 +682,19 @@ class AnimatedWrapRender extends RenderBox
     if (previousSize != null && size != previousSize) {
       // we use the alignment to determine if we should move everything in train with the far horizontal boundary or the far vertical boundary. We considered using offset, (which would also animate movement within the parent), but that would create inconsistent behavior, since a child widget isn't always told when the offset changes.
       // move everything in train with the far horizontal boundary if appropriate
-      final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
-      final farSideMain =
-          flipMainAxis ? WrapAlignment.start : WrapAlignment.end;
-      final farSideCross =
-          flipCrossAxis ? WrapAlignment.start : WrapAlignment.end;
+      // whether the stuff is aligned to the far side on the main axis
+      final bool farSideMain = (alignment == WrapAlignment.end) ^
+          (textDirection == TextDirection.rtl);
+      // whether the stuff is aligned to the far side on the cross axis
+      final bool farSideCross =
+          crossAxisAlignment == AnimatedWrapCrossAlignment.end;
+      final (bool farSideHorizontal, bool farSideVertical) =
+          switch (direction) {
+        Axis.horizontal => (farSideMain, farSideCross),
+        Axis.vertical => (farSideCross, farSideMain),
+      };
 
-      if (direction == Axis.horizontal
-          ? alignment == farSideMain
-          : runAlignment == farSideCross) {
+      if (farSideHorizontal) {
         var dx = size.width - (previousSize?.width ?? 0);
         for (RenderBox? child = firstChild;
             child != null;
@@ -728,9 +716,7 @@ class AnimatedWrapRender extends RenderBox
         }
       }
       // move everything in train with the far vertical boundary if appropriate
-      if (direction == Axis.vertical
-          ? alignment == farSideMain
-          : runAlignment == farSideCross) {
+      if (farSideVertical) {
         var dy = size.height - (previousSize?.height ?? 0);
         for (RenderBox? child = firstChild;
             child != null;
@@ -790,7 +776,6 @@ class AnimatedWrapRender extends RenderBox
         ),
     };
 
-    final (bool flipMainAxis, _) = _areAxesFlipped;
     final double spacing = this.spacing;
 
     final List<_RunMetrics> runMetrics = <_RunMetrics>[];
@@ -828,9 +813,6 @@ class AnimatedWrapRender extends RenderBox
         currentRun!.axisSize +=
             childSize + AxisSize(mainAxisExtent: spacing, crossAxisExtent: 0.0);
         currentRun!.childCount += 1;
-        // yeah it traverses them backwards in _positionChildren if flipMainAxis.
-        currentRun!.leadingChild =
-            flipMainAxis ? child : currentRun!.leadingChild ?? child;
       }
     }
     if (currentRun != null) {
@@ -858,9 +840,10 @@ class AnimatedWrapRender extends RenderBox
 
     final double crossAxisFreeSpace = max(0.0, freeAxisSize.crossAxisExtent);
 
-    final (bool flipMainAxis, bool flipCrossAxis) = _areAxesFlipped;
     final AnimatedWrapCrossAlignment effectiveCrossAlignment =
-        flipCrossAxis ? crossAxisAlignment._flipped : crossAxisAlignment;
+        direction == Axis.horizontal
+            ? crossAxisAlignment
+            : crossAxisAlignment._flipped;
 
     final (double runLeadingSpace, double runBetweenSpace) =
         distributeWrapSpace(
@@ -868,13 +851,12 @@ class AnimatedWrapRender extends RenderBox
       crossAxisFreeSpace,
       runSpacing,
       runMetrics.length,
-      flipCrossAxis,
     );
-    final NextChild nextChild = flipMainAxis ? childBefore : childAfter;
 
     double runCrossAxisOffset = runLeadingSpace;
-    final Iterable<_RunMetrics> runs =
-        flipCrossAxis ? runMetrics.reversed : runMetrics;
+    final Iterable<_RunMetrics> runs = verticalDirection == VerticalDirection.up
+        ? runMetrics.reversed
+        : runMetrics;
     for (final _RunMetrics run in runs) {
       final double runCrossAxisExtent = run.axisSize.crossAxisExtent;
       int childCount = run.childCount;
@@ -884,13 +866,13 @@ class AnimatedWrapRender extends RenderBox
 
       final (double childLeadingSpace, double childBetweenSpace) =
           distributeWrapSpace(
-              alignment, mainAxisFreeSpace, spacing, childCount, flipMainAxis);
+              alignment, mainAxisFreeSpace, spacing, childCount);
 
       double childMainAxisOffset = childLeadingSpace;
 
       for (RenderBox? child = run.leadingChild;
           child != null && childCount > 0;
-          child = nextChild(child), childCount -= 1) {
+          child = childAfter(child), childCount -= 1) {
         final AxisSize(
           mainAxisExtent: double childMainAxisExtent,
           crossAxisExtent: double childCrossAxisExtent
