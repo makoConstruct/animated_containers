@@ -2,6 +2,8 @@
 
 Wrote `InsertionPoint insertionIndexAt(Offset p, {double insertionSpacingForClear = 20})`, needed for drag and drop insertion index calculation.
 
+(internal) removed the unnecessary horizontal inversion in rows/_RunMetrics.
+
 ## 1.1.0
 
 Improved readme's argument against having flex sizing within a wrap.

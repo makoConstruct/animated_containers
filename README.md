@@ -59,6 +59,25 @@ AnimatedWrap.material3(
 
 There's a nice example app at example/lib/main.dart
 
+### Drag and Drop
+
+For drag and drop, given your drag pointer location in global space, when you're ready to do an insertion, you can get information about where the dragging pointer is relative to the items with the insertionIndexAt method like this:
+
+```dart
+Offset o;
+InsertionPoint insertion =
+    (yourWrapKey.currentState as AnimatedWrapState)
+        .insertionIndexAt((yourWrapKey.currentContext!
+                .findRenderObject() as RenderBox)
+            .globalToLocal(o));
+```
+
+The returned `InsertionPoint` provides all the information you need to:
+- Find the index to insert at for the given drop position
+- Display an indicator hint in the right place over the AnimatedWrap you're inserting into (`Offset position` and `bool inserterWide`).
+
+There's a bit more to [drag](https://api.flutter.dev/flutter/widgets/LongPressDraggable-class.html) and [drop](https://api.flutter.dev/flutter/widgets/DragTarget-class.html) in flutter. You may want to just copy my ways of using that stuff from [Mako Timer](https://github.com/makoConstruct/timer).
+
 ## `AnimatedFlex`
 
 It's like a `Flex` widget, but you have to use `AnFlexible(flex: double, fit: FlexFit, child: Widget)` around your widget instead of a `Flexible`, and note that `AnFlexible` has to be there when the widget is inserted (it needs to be there even before your widget `build`s). We've been unable to replicate `Flexible`'s behavior due to the fact that we're inserting additional insert and removal animations between the item and the `AnimatedFlex` (*so the ParentDataWidget stuff can't reach the AnimatedFlexParentData. It's conceivable a custom parent data render object could go recursive and get there, I currently don't see a need.*)
@@ -106,6 +125,10 @@ First, you'd need to impose a fairly tight limit on how wide or how short an ite
 
 Even if we solved that somehow, aesthetically, it means introducing fairly random size changes to elements, which usually look bad. See [the size change issue](https://github.com/flutter/flutter/issues/84948). Getting size changes right is difficult given the current state of UI animation programming. Even our Ranimation approach doesn't work perfectly for AnimatedFlex, as it will always create gaps between elements as the animation proceeds (sometimes this is fine of course, eg, reorderings, where theres's not really an alternative, but for resizings or insertions or removals it's a cost)
 
+
+
+
 ## See Also
 
 [animated_to](https://github.com/chooyan-eng/animated_to), which animates the movement of items with a global key regardless of where they're being moved to or from. Not a nice API if all you want to do is animate movement within one container, but I'm wondering if I should have done things this way under the hood. We do already have to map `GlobalKeys` to your `children` widget keys internally.
+

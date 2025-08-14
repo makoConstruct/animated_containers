@@ -103,16 +103,22 @@ class AnimatedWrapParentData extends ContainerBoxParentData<RenderBox> {
 
 /// a position at which a child can be inserted
 class InsertionPoint {
+  // the index of the item being most closely hovered
   final int index;
   final Offset position;
+  final bool insertingAfter;
 
   /// is wide when it's not inserting at a between point, in which case a narrow selector visual wouldn't look right
   final bool inserterWide;
   const InsertionPoint({
     required this.index,
+    required this.insertingAfter,
     required this.position,
     this.inserterWide = false,
   });
+
+  /// the index to be inserted into if you're doing an insertion
+  int get insertionIndex => index + (insertingAfter ? 1 : 0);
 }
 
 /// Displays its children in multiple horizontal or vertical runs.
@@ -904,7 +910,10 @@ class AnimatedWrapRender extends RenderBox
       // this would never happen, since it would mean the drag and drop is happening before the container has been laid out, which a user can't do
       // note, the position isn't quite right, but this might not get used
       return const InsertionPoint(
-          index: 0, position: Offset.zero, inserterWide: true);
+          index: 0,
+          position: Offset.zero,
+          insertingAfter: false,
+          inserterWide: true);
     }
 
     // we compute from previous frame's positions
@@ -965,24 +974,30 @@ class AnimatedWrapRender extends RenderBox
     // performance opportunity if needed; you can speed this up by first doing a spine check, where you check the leadingChild of each row to rule most rows out
     // complications: we don't know which row we're in until we've processed the following row to find its lowest y and see whether it's closer to the insertion point than the prev row's highest y
     // remember the nearest one from the previous row, check the next row to see if there's anything nearer per the y of that row, if not, it's the one from the previous.
-    int itotal = 0;
     if (runMetrics.isEmpty) {
       return InsertionPoint(
           index: 0,
+          insertingAfter: false,
           position: Offset(insertionSpacingForClear, insertionSpacingForClear),
           inserterWide: true);
     }
-    // (nearest in x, nearest from the edge of the child)
-    // whether the cursor is on the right side
-    bool prevNearestIndicatorIsWide = false;
-    double prevRowsLowestY = double.infinity;
-    double prevRowsHighestY = double.negativeInfinity;
+    int itotal = 0;
+    // whether the cursor should be rendered on one of the ends
+    bool prevNearestIndicatorIsWide = true;
+    // these would seem to be the opposite of their names, this is because the coordinate system flips the y axis
+    double prevRowsLowestY = double.negativeInfinity;
+    double prevRowsHighestY = double.infinity;
     double prevRowsNearestIndicatorX = 0;
+    bool prevNearestAfter = false;
     int prevRowsNearestChildIndex = 0;
     for (int i = 0; i < runMetrics.length; i++) {
       final _RunMetrics run = runMetrics[i];
-      double thisRowsLowestY = double.infinity;
-      double thisRowsHighestY = double.negativeInfinity;
+      if (run.childCount == 0) {
+        continue;
+      }
+      double thisRowsLowestY = double.negativeInfinity;
+      double thisRowsHighestY = double.infinity;
+      // (nearest in x, nearest from the edge of the child)
       double nearestChildDistanceX = double.infinity;
       int nearestChildIndex = 0;
       double? nearestIndicatorX;
@@ -990,6 +1005,7 @@ class AnimatedWrapRender extends RenderBox
       bool nearestIndicatorIsWide = false;
       RenderBox? child = run.leadingChild;
       double? previousChildRightEdge;
+      bool nearestAfter = false;
       bool nearestIndicatorXNeedsSetting = false;
       for (int j = 0; j < run.childCount; j++) {
         if (child == null) {
@@ -997,21 +1013,26 @@ class AnimatedWrapRender extends RenderBox
         }
         final Rect childBounds = normalizeRect(
             (child.parentData as AnimatedWrapParentData).offset & child.size);
-        if (childBounds.top < thisRowsLowestY) {
-          thisRowsLowestY = childBounds.top;
+        if (childBounds.bottom > thisRowsLowestY) {
+          thisRowsLowestY = childBounds.bottom;
         }
-        if (childBounds.top > thisRowsHighestY) {
+        if (childBounds.top < thisRowsHighestY) {
           thisRowsHighestY = childBounds.top;
         }
         if (nearestIndicatorXNeedsSetting) {
           nearestIndicatorX = (previousChildRightEdge! + childBounds.left) / 2;
           nearestIndicatorXNeedsSetting = false;
         }
+        bool insertingAfter = pr.dx > childBounds.center.dx;
+        bool isInside = pr.dx >= childBounds.left && pr.dx < childBounds.right;
         // check nearness to each side of the child
-        double distance = (childBounds.left - pr.dx).abs();
-        if (distance < nearestChildDistanceX) {
-          nearestChildIndex = j;
-          nearestChildDistanceX = distance;
+        double leftDistance = (childBounds.left - pr.dx).abs();
+        // when there's no gap between two items, they have the same edge, in this case we make sure the point is considered to be closer to the edge belonging to the item that it's inside
+        if (leftDistance < nearestChildDistanceX ||
+            (isInside && leftDistance <= nearestChildDistanceX)) {
+          nearestChildIndex = itotal;
+          nearestAfter = insertingAfter;
+          nearestChildDistanceX = leftDistance;
           if (previousChildRightEdge != null) {
             nearestIndicatorIsWide = false;
             nearestIndicatorX = childBounds.left - insertionSpacingForClear;
@@ -1022,10 +1043,11 @@ class AnimatedWrapRender extends RenderBox
                 : (previousChildRightEdge + childBounds.left) / 2;
           }
         }
-        distance = (childBounds.right - pr.dx).abs();
-        if (distance < nearestChildDistanceX) {
-          nearestChildIndex = j;
-          nearestChildDistanceX = distance;
+        double rightDistance = (childBounds.right - pr.dx).abs();
+        if (rightDistance < nearestChildDistanceX) {
+          nearestChildIndex = itotal;
+          nearestAfter = insertingAfter;
+          nearestChildDistanceX = rightDistance;
           // we don't know the next child's left, so can't set nearestX, this flag will make sure it's done either way
           nearestIndicatorXNeedsSetting = true;
         }
@@ -1036,12 +1058,15 @@ class AnimatedWrapRender extends RenderBox
       if (nearestIndicatorXNeedsSetting) {
         nearestIndicatorX = previousChildRightEdge! + insertionSpacingForClear;
       }
-      if (pr.dy < (thisRowsHighestY + prevRowsLowestY) / 2) {
+      if (pr.dy > (thisRowsHighestY + prevRowsLowestY) / 2 ||
+          // if prevLowestY is unset like so, it means this is the first row
+          prevRowsLowestY == double.negativeInfinity) {
         //then it could be in this row
-        if (pr.dy > thisRowsLowestY) {
+        if (pr.dy < thisRowsLowestY) {
           // then it is in this row. Otherwise, continue on to the next row to find out where that boundary is, and then we'll know for sure
           return InsertionPoint(
-              index: itotal,
+              index: nearestChildIndex,
+              insertingAfter: nearestAfter,
               position: transformBack(Offset(nearestIndicatorX!,
                   (thisRowsLowestY + thisRowsHighestY) / 2)),
               inserterWide: nearestIndicatorIsWide);
@@ -1050,6 +1075,7 @@ class AnimatedWrapRender extends RenderBox
         //then it's actually in the previous row
         return InsertionPoint(
             index: prevRowsNearestChildIndex,
+            insertingAfter: prevNearestAfter,
             position: transformBack(Offset(prevRowsNearestIndicatorX,
                 (prevRowsLowestY + prevRowsHighestY) / 2)),
             inserterWide: prevNearestIndicatorIsWide);
@@ -1058,11 +1084,13 @@ class AnimatedWrapRender extends RenderBox
       prevRowsHighestY = thisRowsHighestY;
       prevRowsNearestIndicatorX = nearestIndicatorX ?? 0;
       prevRowsNearestChildIndex = nearestChildIndex;
+      prevNearestAfter = nearestAfter;
       prevNearestIndicatorIsWide = nearestIndicatorIsWide;
     }
 
     return InsertionPoint(
         index: runMetrics.length,
+        insertingAfter: true,
         position: transformBack(
             Offset(insertionSpacingForClear, insertionSpacingForClear)),
         inserterWide: true);
