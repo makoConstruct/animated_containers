@@ -266,7 +266,6 @@ class DynamicEaseInOutSimulation extends Simulation {
         super();
 
   void target(double v, {required double time}) {
-    // if (v != endValue) {
     if (startValue.isNaN) {
       startValue = endValue = v;
       startVelocity = 0;
@@ -275,9 +274,6 @@ class DynamicEaseInOutSimulation extends Simulation {
       startVelocity = dx(time);
       endValue = v;
     }
-    // } else {
-    //   startValue = v;
-    // }
   }
 
   @override
@@ -451,6 +447,15 @@ class MovementSimulationAnimationController extends Animation<Offset>
 
   Offset get targetValue => _targetValue;
 
+  set value(Offset v) {
+    if (_value != v) {
+      _value = v;
+      if (!_ticker.isActive) {
+        notifyListeners();
+      }
+    }
+  }
+
   @override
   Offset get value => _value;
 
@@ -509,87 +514,11 @@ class SmoothOffset extends MovementSimulationAnimationController {
   }) : super(
             simulationConstructor: (prevx, prevdx, newTarget) =>
                 DuoMovementSimulation(
-                    simulationx: DynamicEaseInOutSimulation(prevx.dx,
-                        duration: duration.inMicroseconds.toDouble()),
-                    simulationy: DynamicEaseInOutSimulation(prevx.dy,
-                        duration: duration.inMicroseconds.toDouble())));
+                  simulationx: DynamicEaseInOutSimulation.constructorFrom(
+                      prevx.dx, prevdx.dx, newTarget.dx,
+                      duration: duration.inMicroseconds.toDouble()),
+                  simulationy: DynamicEaseInOutSimulation.constructorFrom(
+                      prevx.dy, prevdx.dy, newTarget.dy,
+                      duration: duration.inMicroseconds.toDouble()),
+                ));
 }
-
-// class SmoothOffset extends Animation<Offset>
-//     with
-//         AnimationEagerListenerMixin,
-//         AnimationLocalListenersMixin,
-//         AnimationLocalStatusListenersMixin {
-//   final DynamicEaseInOutSimulation xSimulation;
-//   final DynamicEaseInOutSimulation ySimulation;
-//   late final Ticker _ticker;
-//   Offset _value;
-//   Duration duration;
-//   Duration lastElapsedDuration;
-
-//   SmoothOffset({
-//     required Offset value,
-//     required this.duration,
-//     required TickerProvider vsync,
-//   })  : _value = value,
-//         xSimulation = DynamicEaseInOutSimulation(
-//           value.dx,
-//           duration: duration.inMicroseconds.toDouble(),
-//         ),
-//         ySimulation = DynamicEaseInOutSimulation(
-//           value.dy,
-//           duration: duration.inMicroseconds.toDouble(),
-//         ),
-//         lastElapsedDuration = duration {
-//     _ticker = vsync.createTicker(_tick);
-//   }
-
-//   Offset get targetValue => Offset(xSimulation.endValue, ySimulation.endValue);
-
-//   @override
-//   Offset get value => _value;
-
-//   @override
-//   AnimationStatus get status {
-//     if (lastElapsedDuration >= duration) return AnimationStatus.completed;
-//     return AnimationStatus.forward;
-//   }
-
-//   void _tick(Duration elapsed) {
-//     if (elapsed > duration) {
-//       _value = targetValue;
-//       _ticker.stop();
-//       notifyListeners();
-//       notifyStatusListeners(AnimationStatus.completed);
-//       return;
-//     }
-//     lastElapsedDuration = elapsed;
-//     _value = Offset(
-//       xSimulation.x(elapsed.inMicroseconds.toDouble()),
-//       ySimulation.x(elapsed.inMicroseconds.toDouble()),
-//     );
-//     notifyListeners();
-//   }
-
-//   void target(Offset target) {
-//     if (_value.dx != target.dx || _value.dy != target.dy) {
-//       xSimulation.target(target.dx,
-//           time: lastElapsedDuration.inMicroseconds.toDouble());
-//       ySimulation.target(target.dy,
-//           time: lastElapsedDuration.inMicroseconds.toDouble());
-//       lastElapsedDuration = const Duration(milliseconds: 0);
-//       bool tickingWasActive = _ticker.isActive;
-//       _ticker.stop();
-//       _ticker.start();
-//       if (!tickingWasActive) {
-//         notifyStatusListeners(AnimationStatus.forward);
-//       }
-//     }
-//   }
-
-//   @override
-//   void dispose() {
-//     super.dispose();
-//     _ticker.dispose();
-//   }
-// }
