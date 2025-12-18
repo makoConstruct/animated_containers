@@ -524,11 +524,18 @@ class AnimatedWrapRender extends RenderBox
     };
   }
 
-  Offset _getOffset(double mainAxisOffset, double crossAxisOffset) {
-    return switch (direction) {
-      Axis.horizontal => Offset(mainAxisOffset, crossAxisOffset),
-      Axis.vertical => Offset(crossAxisOffset, mainAxisOffset),
+  Offset _getOffset(double mainAxisOffset, double crossAxisOffset,
+      double fullMainAxisExtent, double childMainAxisExtent) {
+    Offset result = switch (textDirection ?? TextDirection.ltr) {
+      TextDirection.ltr => Offset(mainAxisOffset, crossAxisOffset),
+      TextDirection.rtl => Offset(
+          fullMainAxisExtent - childMainAxisExtent - mainAxisOffset,
+          crossAxisOffset),
     };
+    if (direction == Axis.vertical) {
+      result = flipOffset(result);
+    }
+    return result;
   }
 
   @override
@@ -885,10 +892,15 @@ class AnimatedWrapRender extends RenderBox
         ) = AxisSize.fromSize(size: getChildSize(child), direction: direction);
         final double childCrossAxisOffset = effectiveCrossAlignment._alignment *
             (runCrossAxisExtent - childCrossAxisExtent);
-        positionChild(
-            _getOffset(
-                childMainAxisOffset, runCrossAxisOffset + childCrossAxisOffset),
-            child);
+        Offset o = _getOffset(
+            childMainAxisOffset,
+            runCrossAxisOffset + childCrossAxisOffset,
+            run.axisSize.mainAxisExtent,
+            childMainAxisExtent);
+        // if (textDirection == TextDirection.rtl) {
+        //   o = Offset(o.dx - childMainAxisExtent, o.dy);
+        // }
+        positionChild(o, child);
         childMainAxisOffset += childMainAxisExtent + childBetweenSpace;
       }
       runCrossAxisOffset += runCrossAxisExtent + runBetweenSpace;
@@ -1342,6 +1354,8 @@ class AnimatedWrap extends StatefulWidget {
   @override
   State<AnimatedWrap> createState() => AnimatedWrapState();
 }
+
+Offset flipOffset(Offset o) => Offset(o.dy, o.dx);
 
 class _Removal {
   final _AnimatedWrapItem item;
