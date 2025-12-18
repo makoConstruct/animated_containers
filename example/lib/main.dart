@@ -213,7 +213,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   DemoOrientation.weird => SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(8.0),
                       child: AnimatedWrap.material3(
                         direction: Axis.vertical,
                         alignment: WrapAlignment.start,

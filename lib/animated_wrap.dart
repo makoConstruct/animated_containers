@@ -892,13 +892,12 @@ class AnimatedWrapRender extends RenderBox
         ) = AxisSize.fromSize(size: getChildSize(child), direction: direction);
         final double childCrossAxisOffset = effectiveCrossAlignment._alignment *
             (runCrossAxisExtent - childCrossAxisExtent);
-        positionChild(
-            _getOffset(
-                childMainAxisOffset,
-                runCrossAxisOffset + childCrossAxisOffset,
-                run.axisSize.mainAxisExtent,
-                childMainAxisExtent),
-            child);
+        Offset o = _getOffset(
+            childMainAxisOffset,
+            runCrossAxisOffset + childCrossAxisOffset,
+            containerAxisSize.mainAxisExtent,
+            childMainAxisExtent);
+        positionChild(o, child);
         childMainAxisOffset += childMainAxisExtent + childBetweenSpace;
       }
       runCrossAxisOffset += runCrossAxisExtent + runBetweenSpace;
