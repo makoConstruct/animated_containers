@@ -1,6 +1,6 @@
 name: animated_containers
 description: "Flex and Wrap widgets with animated insertion, deletion, and layout changes."
-version: 1.3.0
+version: 1.3.1
 homepage: https://github.com/makoConstruct/animated_containers
 license: MIT
 

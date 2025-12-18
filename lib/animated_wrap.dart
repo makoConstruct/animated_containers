@@ -892,15 +892,13 @@ class AnimatedWrapRender extends RenderBox
         ) = AxisSize.fromSize(size: getChildSize(child), direction: direction);
         final double childCrossAxisOffset = effectiveCrossAlignment._alignment *
             (runCrossAxisExtent - childCrossAxisExtent);
-        Offset o = _getOffset(
-            childMainAxisOffset,
-            runCrossAxisOffset + childCrossAxisOffset,
-            run.axisSize.mainAxisExtent,
-            childMainAxisExtent);
-        // if (textDirection == TextDirection.rtl) {
-        //   o = Offset(o.dx - childMainAxisExtent, o.dy);
-        // }
-        positionChild(o, child);
+        positionChild(
+            _getOffset(
+                childMainAxisOffset,
+                runCrossAxisOffset + childCrossAxisOffset,
+                run.axisSize.mainAxisExtent,
+                childMainAxisExtent),
+            child);
         childMainAxisOffset += childMainAxisExtent + childBetweenSpace;
       }
       runCrossAxisOffset += runCrossAxisExtent + runBetweenSpace;
@@ -935,8 +933,6 @@ class AnimatedWrapRender extends RenderBox
         previousComputedRuns!;
 
     // we generally work with normalized positions where runs go to the right and down, we flip back at the end
-    Offset flipOffset(Offset o) => Offset(o.dy, o.dx);
-    Size flipSize(Size s) => Size(s.height, s.width);
     // normalized size
     final Size rsize = direction == Axis.horizontal ? size : flipSize(size);
     double maybeFlippedAxis(double x, bool flipped, double span) =>
@@ -1354,8 +1350,6 @@ class AnimatedWrap extends StatefulWidget {
   @override
   State<AnimatedWrap> createState() => AnimatedWrapState();
 }
-
-Offset flipOffset(Offset o) => Offset(o.dy, o.dx);
 
 class _Removal {
   final _AnimatedWrapItem item;
@@ -1814,3 +1808,6 @@ class _AnimatedWrapRenderWidget extends MultiChildRenderObjectWidget {
       ..sensitivity = sensitivity;
   }
 }
+
+Offset flipOffset(Offset o) => Offset(o.dy, o.dx);
+Size flipSize(Size s) => Size(s.height, s.width);
