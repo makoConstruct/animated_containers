@@ -4,9 +4,9 @@
 
 https://github.com/user-attachments/assets/08744977-a7bb-407f-a7a7-d3787f7e01de
 
-
-
 We also provide `AnimatedFlex` (and an `AnimatedRow`, and `AnimatedColumn`). AnimatedFlex doesn't currently do size change animations the way you'd expect, but we offer another way of doing it, using "ranimated" widgets (currently just `RanimatedContainer`) which we think is arguably better than the idiomatic way.
+
+P.S. I just came across https://pub.dev/packages/layout_motion , which seems to do the same things, more comprehensibly, but I haven't tried it out. You might want to take a look at it.
 
 ## `AnimatedWrap`: Usage
 
