@@ -1,3 +1,7 @@
+### Status
+
+This package currently has no maintainer. The author went on to make [animove](https://github.com/makoConstruct/animover), and recommends it as a more general approach to layout animation. Animove doesn't automatically animate insertion and removal, so it's not a frictionless replacement for animated_containers, but doing your own insertion animation is trivial, and automating removal animation turns out to be pretty problematic: Consider situations where you want to *move* a widget from one wrap to another. If an automatic removal animation plays in the original list, it will appear there and also in the new list at the same time, so if that widget contains any global keys, that's a big problem. It's usually better to control the removal animation from wherever the list mutation is done.
+
 [![pub package](https://img.shields.io/pub/v/animated_containers.svg)](https://pub.dartlang.org/packages/animated_containers)
 
 `AnimatedWrap` is a fully animated alternative to flutter's `Wrap` widget, where layout changes (reordering etc) animate. It also handles insertion and deletion animations.
@@ -131,4 +135,3 @@ Even if we solved that somehow, aesthetically, it means introducing fairly rando
 ## See Also
 
 [animated_to](https://github.com/chooyan-eng/animated_to), which animates the movement of items with a global key regardless of where they're being moved to or from. Not a nice API if all you want to do is animate movement within one container, but I'm wondering if I should have done things this way under the hood. We do already have to map `GlobalKeys` to your `children` widget keys internally.
-
